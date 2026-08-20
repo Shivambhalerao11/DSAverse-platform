@@ -1,0 +1,15 @@
+{
+  "title": "DSAverse — Learn Data Structures & Algorithms Visually",
+  "description": "The world's most interactive DSA learning platform. Visualize every algorithm step-by-step, practice with AI tutor support, and master data structures in 13 programming languages.",
+  "language": "en",
+  "robots": {
+    "index": true
+  },
+  "openGraph": {
+    "image": ""
+  },
+  "accessibility": {
+    "addBypassLinks": true,
+    "ignoreReducedMotion": false
+  }
+}
