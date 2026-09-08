@@ -76,8 +76,8 @@ async function main() {
   }
 
   console.log("\nFinal installed runtimes (GET /api/v2/runtimes):")
-  const runtimesRes = await fetch(`${PISTON_API_URL}/api/v2/runtimes`)
-  console.log(await runtimesRes.text())
+  const finalRuntimesRes = await fetch(`${PISTON_API_URL}/api/v2/runtimes`)
+  console.log(await finalRuntimesRes.text())
   console.log(
     "\nCompare the \"language\" values above against backend/src/lib/piston.ts's LANGUAGE_ALIASES map " +
       "and correct it if Piston's actual language identifiers differ from what's assumed there."
