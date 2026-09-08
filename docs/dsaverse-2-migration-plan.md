@@ -1,6 +1,9 @@
 # DSAverse 2.0 Migration Plan
 
-**Status:** Phase 0 complete and approved. Decisions D1–D5 resolved (§7). Phase 1 in progress.
+**Status:** Phase 0 complete and approved. Decisions D1–D5 resolved (§7).
+Phase 1 (backend scaffold + Supabase auth) done and verified where this
+sandbox allows — one open item needs the user (a live Supabase project).
+Awaiting check-in before Phase 2 (Piston code execution).
 **Branch:** `dsaverse-2-migration`
 **Last updated:** 2026-09-08
 
@@ -490,26 +493,64 @@ original Phase-0 draft to reflect D4 explicitly: **code execution moves up
 to Phase 2**, immediately after the backend scaffold, instead of being
 deferred to the problem-library phase.
 
-### Phase 1 — Backend scaffold + Supabase auth (in progress, this session)
+### Phase 1 — Backend scaffold + Supabase auth ✅ done, verified where this sandbox allows
 - **Objective:** Stand up a real Express + TypeScript backend with a
   health-checked `/api/v1` base and real Supabase-backed authentication, so
   every later phase has something real to call instead of a fallback mock.
 - **Prerequisites:** none — decisions resolved.
-- **Areas touched:** new `backend/` directory (Express + TS scaffold,
-  Supabase client, JWT-verification middleware, health route); `.env.example`
-  files (backend and frontend); SQL migration for a `profiles` table
-  (auth-linked) as the first real table.
-- **Risks:** live verification of Supabase auth requires a real Supabase
-  project's URL/keys, which this session does not have — scaffolding and
-  schema will be complete and buildable, but the actual sign-up/sign-in
-  round-trip needs the user to supply project credentials and verify once.
-- **Verification:** backend `tsc --noEmit` clean; backend builds; health
-  endpoint returns 200 locally; frontend `npm run build`/`tsc` still clean;
-  DSA Worlds pages still load unaffected (this phase doesn't touch `src/pages`).
-- **Acceptance criteria:** backend scaffold runs locally and responds on
-  `/api/v1/health`; auth middleware correctly rejects requests with no/
-  invalid token; documented steps exist for the user to plug in real
-  Supabase credentials and confirm a live signup/login round-trip.
+- **What was built:** `backend/` — Express + TS scaffold (`src/app.ts`,
+  `src/index.ts`), env loader (`src/config/env.ts`, fails loudly rather than
+  silently defaulting when Supabase vars are missing — the opposite of the
+  §2.3 pattern this migration exists to remove), a Supabase admin client
+  (`src/lib/supabase.ts`, service-role key, server-side only), a
+  `requireAuth` middleware (`src/middleware/requireAuth.ts`) that verifies
+  Supabase-issued JWTs locally via `SUPABASE_JWT_SECRET` (HS256, no
+  network round-trip per request), a `GET /api/v1/health` route, a
+  protected `GET /api/v1/users/me` route as the first real end-to-end
+  round trip, and a `profiles` table SQL migration
+  (`backend/db/migrations/0001_init_profiles.sql`) with RLS policies and an
+  `on_auth_user_created` trigger so every signup gets a profile row
+  automatically. `.env.example` added for both `backend/` and the repo root
+  (frontend `VITE_*` vars documented now, not wired into `src/services/`
+  yet — that's Phase 5). Root `.gitignore` fixed with a `!**/.env.example`
+  exception (`.env*` was blocking the example files themselves, not just
+  real secrets).
+- **Verified this session:**
+  - `cd backend && npm install && npx tsc --noEmit` → 0 errors.
+  - `npm run build` → succeeds (`tsc` emits `dist/`).
+  - Booted `node dist/index.js` and, with curl:
+    - `GET /api/v1/health` → `200 {"status":"ok","supabaseConfigured":false}`
+      with no env vars set, and `supabaseConfigured:true` once Supabase vars
+      are present — proves the "fail loudly, report status honestly" env
+      handling actually works in both states, not just on paper.
+    - `GET /api/v1/users/me` with no Supabase configured → `503` with a
+      clear message (not a fabricated profile).
+    - Same route with Supabase vars set (a fake project) and no
+      `Authorization` header → `401 "Missing Authorization: Bearer <token>
+      header."`
+    - Same route with a garbage token → `401 "Invalid or expired token."`
+    - Same route with a **correctly HS256-signed** token (signed with the
+      same `SUPABASE_JWT_SECRET`, proving the verify path itself is
+      correct) → passes auth, `req.user.id` reaches the Supabase query,
+      and fails honestly with `502 "Supabase query failed: ..."` because
+      the project URL is a fake placeholder — this is the expected/correct
+      failure mode for a fake project, not a bug.
+    - Unknown route → `404`.
+  - Root frontend `npx tsc --noEmit` and `npm run build` re-run after the
+    backend scaffold was added → still 0 errors, still succeeds (this phase
+    doesn't touch `src/`).
+- **What could not be verified in this sandbox (needs the user):** an
+  actual Supabase project doesn't exist yet. To close this out: (1) create
+  a Supabase project, (2) run `backend/db/migrations/0001_init_profiles.sql`
+  in its SQL editor, (3) copy `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` /
+  `SUPABASE_JWT_SECRET` (Project Settings → API) into `backend/.env`, (4)
+  sign up a real user via Supabase Auth (e.g. the Supabase dashboard's Auth
+  UI, or `supabase-js` from a scratch script) and confirm `GET /api/v1/
+  users/me` with that user's real access token returns their profile row
+  (200, not 502/503).
+- **Acceptance criteria:** met for everything buildable without a live
+  Supabase project (see above); the live-project round trip is the one
+  remaining open item, explicitly not silently assumed done.
 
 ### Phase 2 — Code execution: self-hosted Piston
 - **Objective:** Real Run/Submit for Python, JavaScript, Java, C++ — no more
