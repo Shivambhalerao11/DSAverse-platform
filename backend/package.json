@@ -7,7 +7,10 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "piston:up": "docker compose up -d",
+    "piston:down": "docker compose down",
+    "piston:setup": "node scripts/setup-piston-packages.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

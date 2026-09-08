@@ -1,4 +1,10 @@
-// Shared Code Execution Service Contract (13 Programming Languages)
+// Code Execution Service Client — talks to the real backend /execute route
+// (backend/src/routes/execute.ts), which proxies to a self-hosted Piston
+// instance (D4). This used to silently fall back to a templated fake
+// "Program finished successfully" response on any failure — that pattern is
+// exactly what this migration exists to remove (see
+// docs/dsaverse-2-migration-plan.md §2.3/§2.7), so it's gone: a failure here
+// is now a real thrown error, not a fabricated success.
 
 export interface CodeExecutionRequest {
   language: string
@@ -15,98 +21,31 @@ export interface CodeExecutionResponse {
   compilationError?: string
 }
 
-export const SUPPORTED_LANGUAGES = [
-  'python',
-  'cpp',
-  'c',
-  'java',
-  'javascript',
-  'typescript',
-  'go',
-  'rust',
-  'swift',
-  'kotlin',
-  'php',
-  'ruby',
-  'csharp',
-] as const
+// First-class languages actually wired to the Piston backend (D4). Not the
+// 13-language wishlist the old simulation pretended to support — expanding
+// this list means installing the matching Piston package
+// (backend/scripts/setup-piston-packages.mjs) and adding it to
+// backend/src/lib/piston.ts's LANGUAGE_ALIASES first.
+export const SUPPORTED_LANGUAGES = ["python", "javascript", "java", "cpp"] as const
 
+/** Requires an authenticated session — the backend's /execute route is requireAuth-gated (see backend/src/routes/execute.ts). */
 export async function executeCode(req: CodeExecutionRequest): Promise<CodeExecutionResponse> {
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
+  const token = localStorage.getItem('dsaverse-auth-token') || sessionStorage.getItem('dsaverse-auth-token')
 
-  try {
-    const res = await fetch(`${apiBase}/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req),
-    })
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
-    if (res.ok) {
-      return (await res.json()) as CodeExecutionResponse
-    }
-  } catch (err) {
-    if (import.meta.env.DEV) {
-      console.warn('[Execution Service] Backend execute fallback:', err)
-    }
+  const res = await fetch(`${apiBase}/execute`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(req),
+  })
+
+  if (!res.ok) {
+    const errorText = await res.text()
+    throw new Error(errorText || `Code execution failed: ${res.status} ${res.statusText}`)
   }
 
-  // Simulated Sandboxed Local Execution Engine Fallback
-  return simulateLocalExecution(req)
-}
-
-function simulateLocalExecution(req: CodeExecutionRequest): CodeExecutionResponse {
-  const startTime = performance.now()
-  const lang = req.language.toLowerCase()
-
-  // Syntax Validation Simulation
-  if (req.code.includes('syntax_error_trigger')) {
-    return {
-      stdout: '',
-      stderr: getLanguageSyntaxError(lang),
-      exitCode: 1,
-      runtimeMs: 12,
-      memoryKb: 4096,
-      compilationError: getLanguageSyntaxError(lang),
-    }
-  }
-
-  let output = `[${req.language.toUpperCase()} Execution Output]\n`
-
-  if (lang === 'python') {
-    output += `Program finished successfully.\nOutput: Hello from DSAVerse Python Engine!\n`
-  } else if (lang === 'cpp' || lang === 'c') {
-    output += `Compiling with gcc/g++ -O2...\nCompilation successful.\nProgram Output: Execution completed cleanly.\n`
-  } else if (lang === 'java') {
-    output += `javac Main.java\njava Main\nExecution completed with exit code 0.\n`
-  } else {
-    output += `Executing ${req.language} script...\nResult: Operation completed.\n`
-  }
-
-  if (req.stdin) {
-    output += `Received STDIN input: ${req.stdin}\n`
-  }
-
-  const duration = Math.round(performance.now() - startTime + 15)
-
-  return {
-    stdout: output,
-    stderr: '',
-    exitCode: 0,
-    runtimeMs: duration,
-    memoryKb: 8192,
-  }
-}
-
-function getLanguageSyntaxError(lang: string): string {
-  switch (lang) {
-    case 'cpp':
-    case 'c':
-      return "main.cpp:7:1: error: expected ';' before 'return'\n 7 | return 0\n | ^"
-    case 'java':
-      return "Main.java:5: error: ';' expected\n System.out.println('Hello')\n ^"
-    case 'python':
-      return 'File "main.py", line 4\n def solve()\n ^\nSyntaxError: expected \':\''
-    default:
-      return `${lang} Compilation Error: Invalid syntax at line 1.`
-  }
+  return (await res.json()) as CodeExecutionResponse
 }

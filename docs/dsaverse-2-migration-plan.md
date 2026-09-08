@@ -1,11 +1,12 @@
 # DSAverse 2.0 Migration Plan
 
 **Status:** Phase 0 complete and approved. Decisions D1–D5 resolved (§7).
-Phase 1 (backend scaffold + Supabase auth) done and verified where this
-sandbox allows — one open item needs the user (a live Supabase project).
-Awaiting check-in before Phase 2 (Piston code execution).
+Phase 1 (backend scaffold + Supabase auth) done, verified where this sandbox
+allows. Phase 2 (Piston code execution) scaffolded and verified against a
+mock Piston server (no Docker in this sandbox) — real live-container
+verification is the user's to run. Awaiting check-in before Phase 3.
 **Branch:** `dsaverse-2-migration`
-**Last updated:** 2026-09-08
+**Last updated:** 2026-09-09
 
 > Methodology note: every factual claim below is backed by a file this session
 > actually opened and read, or a command this session actually ran. Where a
@@ -440,6 +441,12 @@ not promised). This lands in Phase 2, immediately after the backend
 scaffold — per the team's explicit instruction that real execution is core
 to the product, not a stretch feature, it is **not** deferred to the
 problem-library phase the way the original Phase 0 draft had it.
+**Deploy-topology caveat found during Phase 2 (see that section for
+sources): Piston needs `privileged: true`, which Railway explicitly
+disallows and Render's support is unclear — Piston likely needs its own
+VPS host separate from wherever the Express backend deploys, reachable via
+`PISTON_API_URL`.** The backend code doesn't assume co-location, so this
+only affects the deploy plan, not what's already built.
 
 **Visualization stays deterministic and decoupled from real code
 execution.** The type contract already in `src/types/algorithmStep.ts` is
@@ -551,31 +558,106 @@ deferred to the problem-library phase.
 - **Acceptance criteria:** met for everything buildable without a live
   Supabase project (see above); the live-project round trip is the one
   remaining open item, explicitly not silently assumed done.
+- **Update (post-session, user-made change):** `requireAuth.ts` was extended
+  to try local HS256 verification first, then fall back to `supabase.auth.
+  getUser(token)` via the admin client for ES256/asymmetric-signed tokens —
+  real Supabase projects default to asymmetric (ES256) signing keys, not
+  the HS256 shared secret this session assumed, so this fixes a real gap
+  the fake-project testing here couldn't have caught. Trade-off worth
+  noting: the fallback path re-introduces a network round-trip to Supabase
+  per request for any non-HS256 token (i.e., likely every real token) —
+  acceptable for now, but worth revisiting if `/users/me`-style routes
+  become hot paths. Also worth a look before this goes further: the error
+  responses in that fallback now include `details: String(err)` /
+  `error?.message` from Supabase — fine for local debugging, but that's
+  internal error detail reaching the client, worth trimming before this is
+  public-facing.
 
-### Phase 2 — Code execution: self-hosted Piston
+### Phase 2 — Code execution: self-hosted Piston ✅ scaffolded + logic-verified, live container is the user's to run
 - **Objective:** Real Run/Submit for Python, JavaScript, Java, C++ — no more
   `simulateLocalExecution()` (§2.7). Landed early per D4.
 - **Prerequisites:** Phase 1's Express scaffold.
-- **Areas touched:** `docker-compose.yml` for the Piston container; backend
-  `/api/v1/execute` route proxying to Piston; `src/services/
-  executionService.ts` on the frontend points at the real endpoint instead
-  of the simulation fallback (fallback code stays only as an offline/dev
-  convenience, not the default path).
-- **Risks:** this session's sandbox has no Docker available (verified:
-  `docker --version` → not found, checked both in the Bash tool and via
-  PowerShell `Get-Command docker`) — the compose file and proxy route will
-  be written and code-reviewed here, but **actually running Piston and
-  confirming real execution needs to happen on a machine/host with Docker**
-  (the user's machine, or directly on the Railway/Render deploy target).
-- **Verification:** here — backend route compiles and returns a well-formed
-  error when Piston is unreachable (proves the proxy logic, not execution
-  itself). On a Docker-capable host — `docker compose up`, then a real
-  `POST /api/v1/execute` for each of the 4 languages returns correct stdout
-  for a trivial program.
-- **Acceptance criteria:** all 4 first-class languages execute real
-  submitted code and return real stdout/stderr/exit code; documented in
-  this doc which parts were verified here vs. still need a Docker-capable
-  host.
+- **⚠️ Deployment-topology finding (confirmed via web search this session,
+  not from memory):** Piston's own `docker-compose.yaml` requires
+  `privileged: true` for its `isolate`-based sandboxing
+  ([source](https://github.com/engineer-man/piston/blob/master/docker-compose.yaml)).
+  Railway explicitly disallows privileged containers
+  ([source](https://station.railway.com/feedback/allow-services-to-be-run-in-privileged-m-8c66b22b):
+  *"Railway enforces strict container isolation by prohibiting privileged
+  containers"*). Render's support is undocumented/unclear from public
+  search results as of this session — there's an open, unanswered community
+  thread asking the same question. **Net effect: D2's deploy target
+  (Railway/Render) and D4's execution choice (self-hosted Piston) likely
+  don't compose directly for production.** The Express backend itself can
+  probably still deploy to Railway/Render either way; Piston most likely
+  needs a separate host that allows privileged containers (a plain VPS —
+  Fly.io, Hetzner, DigitalOcean, etc.), with `PISTON_API_URL` pointed at it.
+  The backend is already built this way — `PISTON_API_URL` is just a config
+  value, nothing in `backend/src/lib/piston.ts` assumes co-location — so
+  this doesn't block local dev or require a code change, only a deploy-time
+  decision to make later (Phase 2 only needs Piston working locally first).
+  **This needs the user's own verification on Render specifically before
+  committing to it for the execution host** — the search results here
+  weren't conclusive either way.
+- **What was built:** `backend/docker-compose.yml` (Piston container,
+  `privileged: true`, named volume for installed packages);
+  `backend/scripts/setup-piston-packages.mjs` (installs Python/JS/Java/C++
+  by reading the *live* package catalog rather than hardcoding version
+  strings, since Piston's catalog changes over time); `backend/src/lib/
+  piston.ts` (resolves our 4 language keys against Piston's live `/api/v2/
+  runtimes` list via a candidate-alias map, then calls `/api/v2/execute`
+  and maps the response into the existing `CodeExecutionResponse` shape);
+  `backend/src/routes/execute.ts` (`POST /api/v1/execute`, **requireAuth-
+  gated** — a code-execution endpoint is a real abuse/cost vector, and
+  nothing currently in the shipped UI calls it anyway, so gating it now
+  costs nothing); `src/services/executionService.ts` on the frontend
+  rewritten to call the real endpoint with the stored auth token and
+  **throw a real error on failure** — the old silent-fallback-to-fake-
+  success pattern (§2.7) is fully removed, not just supplemented.
+- **Verified this session (no Docker, no live Piston):**
+  - Backend `tsc --noEmit` and `npm run build` — clean, after adding
+    `piston.ts`/`execute.ts`.
+  - `/api/v1/execute` with no auth token → `401`.
+  - With a valid token but missing `code` → `400`; unsupported `language`
+    (e.g. `"ruby"`) → `400` naming the 4 supported languages.
+  - With a valid token, valid request, but **no Piston running** →
+    `502 "Execution service unavailable: fetch failed"` — proves the route
+    fails honestly instead of fabricating a result, the same property
+    tested for Phase 1's `/users/me`.
+  - Wrote a throwaway mock HTTP server matching Piston's documented API v2
+    shape (`/api/v2/runtimes`, `/api/v2/execute`) and ran the **real**
+    `/api/v1/execute` route against it for all 4 languages plus a
+    compile-error case: language-alias resolution correctly matched `cpp`
+    → Piston's `"c++"` identifier, and the response mapping (stdout,
+    stderr, exitCode, runtimeMs, memoryKb, `compilationError` on a nonzero
+    compile step) all came through correctly. **This proves this repo's own
+    request-building and response-parsing code is internally correct
+    against the documented shape — it does not prove the real Piston image
+    behaves exactly like the mock**, since field names/behavior weren't
+    independently confirmed against a live container.
+  - Frontend `npx tsc --noEmit` / `npm run build` re-run after the
+    `executionService.ts` rewrite → still clean.
+- **What could not be verified in this sandbox (needs the user, on a
+  Docker-capable machine):**
+  1. `cd backend && npm run piston:up` (or `docker compose up -d`) actually
+     starts the Piston container successfully with `privileged: true`.
+  2. `npm run piston:setup` successfully installs Python/JS/Java/C++ and
+     prints the real `/api/v2/runtimes` output — **compare that output
+     against `LANGUAGE_ALIASES` in `backend/src/lib/piston.ts` and correct
+     the alias lists if Piston's real identifiers differ** from what's
+     assumed here (this is the single most likely thing to need a fix,
+     flagged explicitly in both the script's output and in code comments).
+  3. A real `POST /api/v1/execute` (with a real Supabase-authenticated
+     token) for each of the 4 languages returns correct stdout for a
+     trivial program, and a deliberately broken program returns a
+     meaningful `compilationError`/`stderr`.
+  4. Confirm whether Render actually supports privileged containers (the
+     deployment-topology finding above) before relying on it as the Piston
+     host specifically.
+- **Acceptance criteria:** met for everything buildable/testable without a
+  live Piston container (see above). The live-container round trip for all
+  4 languages, and the deploy-topology question, are the two remaining open
+  items — explicitly not assumed done.
 
 ### Phase 3 — Visualization engine rewrite (generalizes `.kiro` spec)
 - **Objective:** Fix the `codeLine` sync gap (§2.8) and generalize the

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express"
 import jwt from "jsonwebtoken"
 import { env, isSupabaseConfigured } from "../config/env.js"
+import { getSupabaseAdmin } from "../lib/supabase.js"
 
 export interface AuthedUser {
   id: string
@@ -23,13 +24,10 @@ interface SupabaseAccessTokenClaims {
 }
 
 /**
- * Verifies a Supabase-issued access token locally against the project's JWT
- * secret (HS256) — no network round-trip to Supabase per request. Rejects
- * loudly with 401 on any missing/invalid/expired token; never falls back to
- * a fabricated session (see docs/dsaverse-2-migration-plan.md §2.3-2.4 for
- * why that pattern is being removed, not repeated).
+ * Verifies a Supabase-issued access token. First tries fast local verification
+ * (for HS256 tokens), and falls back to Supabase client verification (for ES256 / ECC asymmetric tokens).
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!isSupabaseConfigured) {
     res.status(503).json({ error: "Auth is not configured on this server yet (Supabase env vars missing)." })
     return
@@ -43,6 +41,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   const token = header.slice("Bearer ".length)
 
+  // 1. Try local HS256 verification
   try {
     const claims = jwt.verify(token, env.supabaseJwtSecret as string, {
       algorithms: ["HS256"],
@@ -50,7 +49,26 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
     req.user = { id: claims.sub, email: claims.email ?? null }
     next()
+    return
   } catch {
-    res.status(401).json({ error: "Invalid or expired token." })
+    // If local HS256 fails (e.g. Supabase uses ES256 asymmetric signing), verify with Supabase Auth API
+  }
+
+  try {
+    const supabase = getSupabaseAdmin()
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+
+    if (error || !user) {
+      console.error("[requireAuth] supabase.auth.getUser error:", error)
+      res.status(401).json({ error: "Invalid or expired token.", details: error?.message })
+      return
+    }
+
+    req.user = { id: user.id, email: user.email ?? null }
+    next()
+  } catch (err) {
+    console.error("[requireAuth] catch error:", err)
+    res.status(401).json({ error: "Invalid or expired token.", details: String(err) })
   }
 }
+

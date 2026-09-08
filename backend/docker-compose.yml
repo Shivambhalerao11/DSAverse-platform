@@ -1,0 +1,40 @@
+# Self-hosted Piston (D4) for local development.
+#
+# NOT VERIFIED IN THIS SESSION — this sandbox has no Docker (`docker --version`
+# and PowerShell `Get-Command docker` both came back empty). Everything below
+# is written against Piston's documented/official compose file and API, but
+# has not been run. Verify with: `docker compose up -d`, then
+# `node scripts/setup-piston-packages.mjs` (see that file), then a real
+# POST to /api/v1/execute per language.
+#
+# DEPLOYMENT RISK, confirmed via web search this session (not from memory):
+# Piston's `isolate`-based sandboxing requires `privileged: true` (see
+# https://github.com/engineer-man/piston/blob/master/docker-compose.yaml).
+# Railway explicitly disallows privileged containers ("Railway enforces
+# strict container isolation by prohibiting privileged containers" -
+# https://station.railway.com/feedback/allow-services-to-be-run-in-privileged-m-8c66b22b).
+# Render's support is undocumented/unclear as of this search. This means
+# D2's deploy target (Railway/Render) and D4's execution choice (self-hosted
+# Piston) may not compose as directly as planned for the production
+# deployment - the Express backend can still deploy to Railway/Render, but
+# Piston itself likely needs a host that allows privileged containers (a
+# plain VPS - Fly.io, Hetzner, DigitalOcean, etc.) with the backend pointed
+# at it via PISTON_API_URL. This is a deploy-topology decision for later
+# (Phase 2 only needs this working locally first) - flagging now so it
+# isn't a surprise at deploy time.
+
+services:
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: dsaverse_piston
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "2000:2000"
+    volumes:
+      - piston_packages:/piston/packages
+    tmpfs:
+      - /piston/jobs:exec
+
+volumes:
+  piston_packages:
