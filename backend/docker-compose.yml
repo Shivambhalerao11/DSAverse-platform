@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
     privileged: true
     ports:
-      - "2000:2000"
+      - "2001:2000"
     volumes:
       - piston_packages:/piston/packages
     tmpfs:

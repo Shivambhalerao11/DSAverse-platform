@@ -24,7 +24,7 @@ export const env = {
   supabaseJwtSecret: optional("SUPABASE_JWT_SECRET"),
 
   geminiApiKey: optional("GEMINI_API_KEY"),
-  pistonApiUrl: optional("PISTON_API_URL") ?? "http://localhost:2000",
+  pistonApiUrl: optional("PISTON_API_URL") ?? "http://localhost:2001",
 }
 
 /** Supabase is configured only when all three of its vars are present. Auth routes fail loudly, not silently, when it isn't. */
