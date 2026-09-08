@@ -8,6 +8,14 @@ export interface LLNodeData {
 
 export type LLStep = AlgorithmStep<{ nodes: LLNodeData[]; activeNodeId?: number }>
 
+// Canonical Python reference per operation — see arrayEngine.ts for why
+// codeLine is Python-only.
+export const LINKED_LIST_CANONICAL_CODE = {
+  traverse: `def traverse(head):\n    node = head\n    while node:\n        visit(node)\n        node = node.next`,
+  insertHead: `def insert_head(head, val):\n    node = Node(val)\n    node.next = head\n    return node`,
+  insertTail: `def insert_tail(head, val):\n    node = Node(val)\n    if head is None:\n        return node\n    curr = head\n    while curr.next:\n        curr = curr.next\n    curr.next = node\n    return head`,
+} as const
+
 export function generateLLTraverseSteps(nodes: LLNodeData[]): LLStep[] {
   if (nodes.length === 0) {
     return [{ stepIndex: 0, description: 'Linked List is empty.', stateSnapshot: { nodes: [] }, variables: { count: 0 }, complexity: { time: 'O(1)', space: 'O(1)', explanation: 'Empty list.' }, highlights: {} }]
@@ -21,7 +29,7 @@ export function generateLLTraverseSteps(nodes: LLNodeData[]): LLStep[] {
       stateSnapshot: { nodes: [...nodes], activeNodeId: n.id },
       variables: { currentVal: n.value, nodeIndex: idx, isHead: idx === 0, isTail: idx === nodes.length - 1 },
       complexity: { time: 'O(N)', space: 'O(1)', explanation: 'Traversing linked list nodes sequentially.' },
-      highlights: { activeIndices: [idx] },
+      highlights: { activeIndices: [idx], codeLine: 4 },
     })
   })
 
@@ -41,7 +49,7 @@ export function generateLLInsertSteps(nodes: LLNodeData[], newVal: number, atHea
     stateSnapshot: { nodes: [...nodes] },
     variables: { insertVal: newVal, position: atHead ? 'HEAD' : 'TAIL' },
     complexity: { time: atHead ? 'O(1)' : 'O(N)', space: 'O(1)', explanation: atHead ? 'O(1) Head pointer update.' : 'O(N) Tail traversal.' },
-    highlights: {},
+    highlights: { codeLine: atHead ? 2 : 6 },
   })
 
   steps.push({
@@ -50,7 +58,7 @@ export function generateLLInsertSteps(nodes: LLNodeData[], newVal: number, atHea
     stateSnapshot: { nodes: nextNodes, activeNodeId: newNode.id },
     variables: { status: 'Inserted', newHead: nextNodes[0]?.value, newTail: nextNodes[nextNodes.length - 1]?.value },
     complexity: { time: atHead ? 'O(1)' : 'O(N)', space: 'O(1)', explanation: 'Updated next pointer.' },
-    highlights: { activeNodes: [`${newNode.id}`] },
+    highlights: { activeNodes: [`${newNode.id}`], codeLine: atHead ? 3 : 8 },
   })
 
   return steps

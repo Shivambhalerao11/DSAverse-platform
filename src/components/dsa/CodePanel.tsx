@@ -8,7 +8,7 @@ interface CodePanelProps {
   variables?: Record<string, string | number | boolean>
 }
 
-export function CodePanel({ language, code, activeLine = 1, variables = {} }: CodePanelProps) {
+export function CodePanel({ language, code, activeLine, variables = {} }: CodePanelProps) {
   const [copied, setCopied] = useState(false)
   const meta = LANGUAGE_METADATA[language] || { ext: 'txt', icon: '💻', color: '#6366f1' }
 

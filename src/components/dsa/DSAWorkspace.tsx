@@ -590,7 +590,7 @@ export default function DSAWorkspace({
               <CodePanel
                 language={validLang}
                 code={codeContent}
-                activeLine={activeLine ?? ((stepIndex || 0) % 4) + 1}
+                activeLine={activeLine}
                 variables={variables}
               />
             }

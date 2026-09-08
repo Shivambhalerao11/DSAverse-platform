@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { InputPanel } from '../components/dsa/InputPanel'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
-import { generateHashTableInsertSteps, generateHashTableSearchSteps } from '../engines/hashTableEngine'
+import { generateHashTableInsertSteps, generateHashTableSearchSteps, HASH_TABLE_CANONICAL_CODE } from '../engines/hashTableEngine'
 
 interface HashTableWorldProps {
   onNavigate: (view: string) => void
@@ -56,6 +56,7 @@ export default function HashTableWorld({ onNavigate, isDark = true, onToggleDark
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <InputPanel
@@ -143,17 +144,7 @@ export default function HashTableWorld({ onNavigate, isDark = true, onToggleDark
           </div>
         </div>
       }
-      codeContent={`class HashTable:
-    def __init__(self, size=7):
-        self.size = size
-        self.buckets = [[] for _ in range(size)]
-
-    def _hash(self, key: str) -> int:
-        return sum(ord(c) for c in key) % self.size
-
-    def insert(self, key: str, val: int):
-        idx = self._hash(key)
-        self.buckets[idx].append((key, val))`}
+      codeContent={op === 'search' ? HASH_TABLE_CANONICAL_CODE.search : HASH_TABLE_CANONICAL_CODE.insert}
     />
   )
 }

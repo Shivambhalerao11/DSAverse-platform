@@ -3,6 +3,18 @@ import { type AlgorithmStep } from '../types/algorithmStep'
 
 export type ArrayStep = AlgorithmStep<number[]>
 
+// Canonical Python reference per operation. `highlights.codeLine` below is a
+// 1-indexed line number into this string — the single source of truth the
+// code panel highlights against (see docs/dsaverse-2-migration-plan.md
+// Phase 3 for why this is Python-only, not per-language: the UI only
+// applies the highlight when Python is selected, so a mismatched line
+// number is never shown against a different language's code).
+export const ARRAY_CANONICAL_CODE: Record<'traverse' | 'search' | 'reverse', string> = {
+  traverse: `def traverse(arr):\n    for i in range(len(arr)):\n        print(arr[i])`,
+  search: `def linear_search(arr, target):\n    for i in range(len(arr)):\n        if arr[i] == target:\n            return i\n    return -1`,
+  reverse: `def reverse(arr):\n    l, r = 0, len(arr) - 1\n    while l < r:\n        arr[l], arr[r] = arr[r], arr[l]\n        l, r = l + 1, r - 1\n    return arr`,
+}
+
 export function generateTraverseSteps(arr: number[]): ArrayStep[] {
   if (arr.length === 0) {
     return [
@@ -81,7 +93,7 @@ export function generateSearchSteps(arr: number[], target: number): ArrayStep[] 
         activeIndices: matched ? [] : [i],
         compareIndices: [i],
         foundIndex: matched ? i : undefined,
-        codeLine: matched ? 6 : 4,
+        codeLine: matched ? 4 : 3,
       },
     })
     if (matched) break
@@ -98,7 +110,7 @@ export function generateSearchSteps(arr: number[], target: number): ArrayStep[] 
         space: 'O(1)',
         explanation: `Searched all N = ${arr.length} elements without finding target.`,
       },
-      highlights: { codeLine: 8 },
+      highlights: { codeLine: 5 },
     })
   }
 
@@ -142,7 +154,7 @@ export function generateReverseSteps(arr: number[]): ArrayStep[] {
       },
       highlights: {
         swapIndices: [l, r],
-        codeLine: 5,
+        codeLine: 4,
       },
     })
 
@@ -164,7 +176,7 @@ export function generateReverseSteps(arr: number[]): ArrayStep[] {
       space: 'O(1)',
       explanation: 'All elements reversed in-place.',
     },
-    highlights: { codeLine: 8 },
+    highlights: { codeLine: 6 },
   })
 
   return steps

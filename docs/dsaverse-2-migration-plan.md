@@ -4,7 +4,8 @@
 Phase 1 (backend scaffold + Supabase auth) done, verified where this sandbox
 allows. Phase 2 (Piston code execution) scaffolded and verified against a
 mock Piston server (no Docker in this sandbox) — real live-container
-verification is the user's to run. Awaiting check-in before Phase 3.
+verification is the user's to run. Phase 3 (visualization engine rewrite)
+done and browser-verified. Awaiting check-in before Phase 4.
 **Branch:** `dsaverse-2-migration`
 **Last updated:** 2026-09-09
 
@@ -659,25 +660,135 @@ deferred to the problem-library phase.
   4 languages, and the deploy-topology question, are the two remaining open
   items — explicitly not assumed done.
 
-### Phase 3 — Visualization engine rewrite (generalizes `.kiro` spec)
+### Phase 3 — Visualization engine rewrite (generalizes `.kiro` spec) ✅ done, browser-verified
 - **Objective:** Fix the `codeLine` sync gap (§2.8) and generalize the
   existing `AlgorithmStep` contract so it can drive both DSA Worlds *and*
   problem solutions.
-- **Prerequisites:** none — can run in parallel with Phases 1–2.
-- **Areas touched:** adapt `.kiro/specs/interactive-dsa-visualization-engine/`
-  into `src/engine/` (types, `useStepPlayer`, `parseInput`); wire real
-  `activeLine` through all 16 `pages/*World.tsx` → `DSAWorkspace`; add a
-  test runner (none currently installed) and per-runner unit tests as the
-  `.kiro` spec's requirement 22 already specifies.
-- **Risks:** touching all 16 pages is broad-surface; do it one module at a
-  time (as `.kiro`'s task wave plan already lays out) with the Arrays
-  module as the reference implementation before touching the rest.
-- **Verification:** `npx tsc --noEmit`; new unit tests pass; manual check
-  that `CodePanel`'s highlighted line now actually matches
-  `currentStep.codeLine` for at least Arrays and Trees (the 2 engines that
-  already populate it) before expanding to the other 9.
-- **Acceptance criteria:** Requirement 20 from `.kiro/.../requirements.md`
-  is met for all 16 modules.
+- **Design deviation from the original plan, and why:** did **not** create a
+  parallel `src/engine/` directory with `.kiro`'s slightly different type
+  shape (`id`/`codeLine` top-level, `highlight{}` renamed). §4/§5 already
+  concluded the existing `AlgorithmStep` contract (`src/types/
+  algorithmStep.ts`) should be *reused*, not replaced — introducing a second,
+  incompatible contract alongside it would have made things worse, not
+  better. Instead, the 11 existing `src/engines/*.ts` files were fixed in
+  place, and 3 new ones added in the same location/pattern.
+- **Discovery that changed scope mid-phase:** while wiring pages, found that
+  `src/pages/{Array,Tree,Sort,Search,LinkedList,Graph,DP,Heap,HashTable,
+  Trie,Greedy,Backtrack}World.tsx` all hardcoded `codeContent` to a single
+  Python snippet regardless of which operation was actually selected (e.g.
+  `SortWorld` always showed bubble-sort code even with Quick Sort selected)
+  — a real, pre-existing bug, unrelated to `codeLine`, fixed as part of the
+  same pass since the fix for both is the same canonical-code wiring. Also
+  found `StringWorld.tsx`/`StackWorld.tsx`/`QueueWorld.tsx` had **no step
+  generator at all** — instant state mutation, no `stepIndex`/`totalSteps`/
+  `onStepChange`, no `codeLine` ever set (for Stack/Queue specifically, no
+  `stepIndex` was even passed to `DSAWorkspace`, so the old fake fallback
+  `((stepIndex||0)%4)+1` collapsed to a permanently-stuck highlight on line
+  1, forever — worse than the general bug in §2.8). And found
+  `src/data/dsaStepGenerators.ts`, a fully-built parallel step-generator
+  file with real per-step `codeLine` already, **imported by nothing**
+  (`grep -rn "dsaStepGenerators" src` → zero matches) — its logic was
+  ported into the new engines below rather than left as dead duplicate code,
+  then the file was deleted.
+- **What was built:**
+  - Added a `*_CANONICAL_CODE` Python reference export to all 11 existing
+    engines (`arrayEngine.ts`, `sortSearchEngine.ts`, `treeEngine.ts`,
+    `linkedListEngine.ts`, `dpEngine.ts`, `graphEngine.ts`, `heapEngine.ts`,
+    `hashTableEngine.ts`, `trieEngine.ts`, `greedyEngine.ts`,
+    `backtrackEngine.ts`) and set `highlights.codeLine` on every step that
+    represents real execution (edge-case/precondition steps, e.g. an empty
+    array, correctly carry no `codeLine` rather than a fabricated one — same
+    convention `arrayEngine.ts` already used).
+  - Three new engines: `stringEngine.ts`, `stackEngine.ts`, `queueEngine.ts`
+    — bringing Strings/Stack/Queue up to the same real `AlgorithmStep[]`
+    pattern as the other 13 topics.
+  - Wired `activeLine` through all 15 page files (16 topics; `bst` shares
+    `TreeWorld.tsx`). For the 10 pages with hardcoded single-snippet
+    `codeContent`, that content now comes from the same canonical-code
+    constant driving `codeLine`, keyed by the actually-selected operation.
+  - `codeLine` is **Python-canonical only**, matching `.kiro` Requirement
+    20.4 exactly (language switching changes displayed text, not the line
+    number) — `ArrayWorld.tsx` (the only page with real language switching)
+    gates `activeLine` to `language === 'Python'`; every other page only
+    ever shows Python, so no gating is needed there.
+  - Deleted `src/data/dsaStepGenerators.ts` (dead code, see above).
+  - Installed `vitest` (bumped straight to `^3.2.4` rather than the latest
+    `2.x`, and ran `npm audit fix` — `2.x` pulled in a vulnerable `esbuild`/
+    `vite-node`/`nanoid` chain; `npm audit` went from 1 high severity to 0).
+    Added `src/engines/__tests__/codeLineValidity.test.ts` (breadth: every
+    engine, every operation, asserts every populated `codeLine` is a real
+    1-indexed line within its canonical code's bounds — the direct
+    Requirement-20 regression check) and `src/engines/__tests__/
+    arrayEngine.test.ts` (depth: empty/single-element/typical/early-exit
+    correctness cases for the Arrays reference module specifically,
+    matching `.kiro`'s heavier bar for the reference implementation).
+- **Bugs caught only by browser verification, not by `tsc` or the unit
+  tests** (this is exactly why the "start the dev server and use the
+  feature" step matters, not a formality):
+  1. `ArrayWorld.tsx` still sourced `codeContent` from the old
+     `dsaDebuggerData.ts` per-language text while `codeLine` pointed into
+     the *new*, different `ARRAY_CANONICAL_CODE` — both were small integers
+     that happened to look plausible in isolation, but referenced different
+     text, so the highlighted line number and the line actually shown could
+     mismatch. Fixed by using `ARRAY_CANONICAL_CODE[op]` for `codeContent`
+     when Python is selected (falling back to `dsaDebuggerData` only for
+     other languages, where no line is highlighted anyway).
+  2. `DSAWorkspace.tsx` still had its old fake fallback
+     (`activeLine ?? ((stepIndex || 0) % 4) + 1`), and `CodePanel.tsx`
+     independently defaulted its own `activeLine` prop to `1` — so any page
+     that legitimately has *no* current step (e.g. Stack/Queue before the
+     user has clicked anything) still showed a fabricated highlight on line
+     1, not the honest "nothing highlighted yet." Fixed by removing both
+     fallbacks: `activeLine` now passes through as `undefined` when there's
+     truly no current step, and `CodePanel` highlights nothing in that case.
+- **Verified this session:**
+  - `npx tsc --noEmit` — 0 errors, after every engine/page change.
+  - `npx vitest run` — 24/24 tests pass (14 breadth cases across all 14
+    engines/23 operations, 10 depth cases for Arrays).
+  - `npm run build` — succeeds, 15 page chunks.
+  - **Real browser verification** (Playwright via the `browser-automation`
+    skill, dev server on port 8443): signed in (mock fallback, real backend
+    unreachable as expected — §2.3), then for **Arrays, Strings, Stack, and
+    Queue**: confirmed the code panel's highlighted line is real, present,
+    changes/updates correctly, and its text matches exactly what
+    `ARRAY_CANONICAL_CODE`/`STRING_CANONICAL_CODE`/`STACK_CANONICAL_CODE`/
+    `QUEUE_CANONICAL_CODE` says that line should be — including that Stack/
+    Queue correctly show **no** highlight before any action and the correct
+    line immediately after Push/Enqueue. Re-verified after fixing the two
+    bugs above (first pass caught them; second pass confirmed the fix).
+    Also spot-checked **Sorting** specifically because it's one of the
+    10 "hardcoded codeContent" pages: confirmed the initial bubble-sort
+    view and a live switch to Quick Sort both show correctly-matched
+    code text and line number. Screenshot evidence saved during the
+    session (not committed to the repo).
+  - **Not individually browser-verified**: Trees, Searching, LinkedList,
+    Graphs, DP, Heap, HashTable, Trie, Greedy, Backtrack — these follow the
+    exact same code-level pattern as Sorting (verified) and pass `tsc`/the
+    unit tests, but weren't each individually clicked through in a browser
+    this session. Flagging this explicitly rather than implying full
+    per-page browser coverage.
+- **Explicitly deferred, not done in this phase** (scope was the `codeLine`
+  sync bug specifically, not the full `.kiro` spec):
+  - `useStepPlayer`/keyboard shortcuts/`prefers-reduced-motion` timing from
+    `.kiro` requirement 2 — the existing `useVisualization.ts` hook and
+    `DSAWorkspace`'s own playback bar were left as-is; only `activeLine`
+    wiring changed.
+  - The exhaustive per-operation test matrix `.kiro` envisioned (≥3 cases ×
+    dozens of operations, 50+ tests) — this phase shipped breadth (every
+    engine/operation, `codeLine` bounds-correctness) plus depth for Arrays
+    only. More per-engine correctness tests (e.g. matching `.kiro`
+    requirements 6–19's specific edge cases) remain a legitimate follow-up.
+  - Accessibility (`aria-live`, `aria-pressed`, `prefers-reduced-motion`),
+    input-size limits, and the `DSALayout.tsx`/`DSAWorkspace.tsx`
+    consolidation — all still slated for their own later phases (9 and 11)
+    per this plan, unchanged.
+  - Per-language `codeLine` accuracy for non-Python languages — intentional,
+    matches `.kiro`'s own accepted tradeoff, not a gap introduced here.
+- **Acceptance criteria:** Requirement 20 (`.kiro/.../requirements.md`) is
+  met for all 16 modules at the code level (every engine populates real
+  `codeLine`, every page wires it through) and directly verified in-browser
+  for Arrays/Strings/Stack/Queue/Sorting; the remaining 10 pages share the
+  identical, verified pattern but weren't each individually screenshotted.
 
 ### Phase 4 — New frontend shell (Lab/Workspace/Profile/Mobile screens, no real data yet)
 - **Objective:** Build the new screens from §3.1 as real React components in

@@ -10,6 +10,23 @@ export interface TreeNode {
 
 export type TreeStep = AlgorithmStep<{ nodes: TreeNode[]; rootVal?: number }>
 
+// Canonical Python reference per traversal — see arrayEngine.ts for why
+// codeLine is Python-only.
+export const TREE_CANONICAL_CODE = {
+  inorder: `def inorder(node):\n    if node:\n        inorder(node.left)\n        visit(node)\n        inorder(node.right)`,
+  preorder: `def preorder(node):\n    if node:\n        visit(node)\n        preorder(node.left)\n        preorder(node.right)`,
+  postorder: `def postorder(node):\n    if node:\n        postorder(node.left)\n        postorder(node.right)\n        visit(node)`,
+  levelorder: `def level_order(root):\n    queue = [root]\n    while queue:\n        node = queue.pop(0)\n        visit(node)\n        queue += [c for c in (node.left, node.right) if c]`,
+  bstInsert: `def insert(root, val):\n    if root is None:\n        return TreeNode(val)\n    if val < root.val:\n        root.left = insert(root.left, val)\n    else:\n        root.right = insert(root.right, val)\n    return root`,
+} as const
+
+const TRAVERSE_VISIT_LINE: Record<'inorder' | 'preorder' | 'postorder' | 'levelorder', number> = {
+  inorder: 4,
+  preorder: 3,
+  postorder: 5,
+  levelorder: 4,
+}
+
 export function generateTreeTraverseSteps(values: number[], type: 'inorder' | 'preorder' | 'postorder' | 'levelorder'): TreeStep[] {
   if (values.length === 0) {
     return [
@@ -38,7 +55,7 @@ export function generateTreeTraverseSteps(values: number[], type: 'inorder' | 'p
       },
       highlights: {
         activeNodes: [`node-${v}`],
-        codeLine: type === 'inorder' ? 3 : type === 'preorder' ? 1 : 5,
+        codeLine: TRAVERSE_VISIT_LINE[type],
       },
     })
   })
@@ -60,7 +77,7 @@ export function generateBSTInsertSteps(values: number[], newVal: number): TreeSt
       space: 'O(1)',
       explanation: 'BST insertion navigates down tree height H = O(log N) for balanced trees.',
     },
-    highlights: { codeLine: 2 },
+    highlights: { codeLine: 4 },
   })
 
   currentVals.push(newVal)
@@ -77,7 +94,7 @@ export function generateBSTInsertSteps(values: number[], newVal: number): TreeSt
     },
     highlights: {
       activeNodes: [`node-${newVal}`],
-      codeLine: 6,
+      codeLine: 3,
     },
   })
 

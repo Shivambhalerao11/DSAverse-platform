@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { InputPanel } from '../components/dsa/InputPanel'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
-import { generateHeapInsertSteps, generateHeapExtractSteps } from '../engines/heapEngine'
+import { generateHeapInsertSteps, generateHeapExtractSteps, HEAP_CANONICAL_CODE } from '../engines/heapEngine'
 
 interface HeapWorldProps {
   onNavigate: (view: string) => void
@@ -60,6 +60,7 @@ export default function HeapWorld({ onNavigate, isDark = true, onToggleDark }: H
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <InputPanel
           label="Heap Array Input"
@@ -133,17 +134,7 @@ export default function HeapWorld({ onNavigate, isDark = true, onToggleDark }: H
           </div>
         </div>
       }
-      codeContent={`# Python Min/Max Heap Implementation
-import heapq
-
-heap = [10, 20, 15, 30, 40, 50]
-heapq.heapify(heap)
-
-# Insert element
-heapq.heappush(heap, 5)
-
-# Extract root element
-root = heapq.heappop(heap)`}
+      codeContent={op === 'extract' ? HEAP_CANONICAL_CODE.extract : HEAP_CANONICAL_CODE.insert}
     />
   )
 }

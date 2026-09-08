@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { InputPanel } from '../components/dsa/InputPanel'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
-import { generateTrieInsertSteps, generateTrieSearchSteps } from '../engines/trieEngine'
+import { generateTrieInsertSteps, generateTrieSearchSteps, TRIE_CANONICAL_CODE } from '../engines/trieEngine'
 
 interface TrieWorldProps {
   onNavigate: (view: string) => void
@@ -61,6 +61,7 @@ export default function TrieWorld({ onNavigate, isDark = true, onToggleDark }: T
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <InputPanel
@@ -122,22 +123,7 @@ export default function TrieWorld({ onNavigate, isDark = true, onToggleDark }: T
           </div>
         </div>
       }
-      codeContent={`class TrieNode:
-    def __init__(self):
-        self.children = {}
-        self.is_end = False
-
-class Trie:
-    def __init__(self):
-        self.root = TrieNode()
-
-    def insert(self, word: str):
-        node = self.root
-        for char in word:
-            if char not in node.children:
-                node.children[char] = TrieNode()
-            node = node.children[char]
-        node.is_end = True`}
+      codeContent={op === 'insert' ? TRIE_CANONICAL_CODE.insert : TRIE_CANONICAL_CODE.search}
     />
   )
 }

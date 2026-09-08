@@ -10,6 +10,13 @@ export interface TrieStepSnapshot {
 
 export type TrieStep = AlgorithmStep<TrieStepSnapshot>
 
+// Canonical Python reference per operation — see arrayEngine.ts for why
+// codeLine is Python-only.
+export const TRIE_CANONICAL_CODE = {
+  insert: `def insert(root, word):\n    node = root\n    for ch in word:\n        if ch not in node.children:\n            node.children[ch] = TrieNode()\n        node = node.children[ch]\n    node.is_end = True`,
+  search: `def search(root, word, prefix_only=False):\n    node = root\n    for ch in word:\n        if ch not in node.children:\n            return False\n        node = node.children[ch]\n    return prefix_only or node.is_end`,
+} as const
+
 export function generateTrieInsertSteps(existingWords: string[], word: string): TrieStep[] {
   const words = Array.from(new Set([...existingWords, word]))
   const steps: TrieStep[] = []
@@ -22,7 +29,7 @@ export function generateTrieInsertSteps(existingWords: string[], word: string): 
       stateSnapshot: { words, currentWord: word, matchingPrefix: prefix },
       variables: { currentChar: word[i - 1], prefixLength: i },
       complexity: { time: `O(L)`, space: 'O(L * Sigma)', explanation: `Trie insertion takes L = ${word.length} operations for word length.` },
-      highlights: { activeNodes: [prefix] },
+      highlights: { activeNodes: [prefix], codeLine: 6 },
     })
   }
 
@@ -32,7 +39,7 @@ export function generateTrieInsertSteps(existingWords: string[], word: string): 
     stateSnapshot: { words, currentWord: word, matchingPrefix: word, found: true },
     variables: { status: 'Inserted', word },
     complexity: { time: 'O(L)', space: 'O(L)', explanation: 'Terminal node flag set to true.' },
-    highlights: { activeNodes: [word] },
+    highlights: { activeNodes: [word], codeLine: 7 },
   })
 
   return steps
@@ -41,7 +48,6 @@ export function generateTrieInsertSteps(existingWords: string[], word: string): 
 export function generateTrieSearchSteps(words: string[], target: string, isPrefixSearch = false): TrieStep[] {
   const steps: TrieStep[] = []
   let current = ''
-  let matched = true
 
   for (let i = 0; i < target.length; i++) {
     current += target[i]
@@ -51,7 +57,7 @@ export function generateTrieSearchSteps(words: string[], target: string, isPrefi
       stateSnapshot: { words, currentWord: target, matchingPrefix: current },
       variables: { char: target[i], depth: i + 1 },
       complexity: { time: 'O(L)', space: 'O(1)', explanation: `Navigating Trie child pointers for prefix "${current}".` },
-      highlights: { activeNodes: [current] },
+      highlights: { activeNodes: [current], codeLine: 6 },
     })
   }
 
@@ -67,7 +73,7 @@ export function generateTrieSearchSteps(words: string[], target: string, isPrefi
     stateSnapshot: { words, currentWord: target, matchingPrefix: target, found: success },
     variables: { query: target, status: success ? 'Found' : 'Not Found' },
     complexity: { time: 'O(L)', space: 'O(1)', explanation: success ? 'Search completed successfully.' : 'Path terminated early.' },
-    highlights: { activeNodes: success ? [target] : [] },
+    highlights: { activeNodes: success ? [target] : [], codeLine: 7 },
   })
 
   return steps

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
-import { generateNQueensSteps } from '../engines/backtrackEngine'
+import { generateNQueensSteps, BACKTRACK_CANONICAL_CODE } from '../engines/backtrackEngine'
 
 interface BacktrackWorldProps {
   onNavigate: (view: string) => void
@@ -43,6 +43,7 @@ export default function BacktrackWorld({ onNavigate, isDark = true, onToggleDark
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--c-text-2)' }}>
           Problem: N-Queens Chessboard Placement ({boardSize}x{boardSize})
@@ -95,18 +96,7 @@ export default function BacktrackWorld({ onNavigate, isDark = true, onToggleDark
           </div>
         </div>
       }
-      codeContent={`def solve_n_queens(n):
-    board = [[0]*n for _ in range(n)]
-
-    def backtrack(row):
-        if row == n:
-            return True
-        for col in range(n):
-            if is_safe(board, row, col):
-                board[row][col] = 1
-                if backtrack(row + 1): return True
-                board[row][col] = 0 # Backtrack
-        return False`}
+      codeContent={BACKTRACK_CANONICAL_CODE.nQueens}
     />
   )
 }

@@ -9,6 +9,15 @@ export interface DPGridSnapshot {
 
 export type DPStep = AlgorithmStep<DPGridSnapshot>
 
+// Canonical Python reference per problem — see arrayEngine.ts for why
+// codeLine is Python-only.
+export const DP_CANONICAL_CODE = {
+  fibonacci: `def fib(n):\n    dp = [0] * (n + 1)\n    dp[1] = 1\n    for i in range(2, n + 1):\n        dp[i] = dp[i - 1] + dp[i - 2]\n    return dp[n]`,
+  knapsack: `def knapsack(weights, values, capacity):\n    n = len(weights)\n    dp = [[0] * (capacity + 1) for _ in range(n + 1)]\n    for i in range(1, n + 1):\n        for w in range(1, capacity + 1):\n            if weights[i - 1] <= w:\n                dp[i][w] = max(dp[i - 1][w], values[i - 1] + dp[i - 1][w - weights[i - 1]])\n            else:\n                dp[i][w] = dp[i - 1][w]\n    return dp[n][capacity]`,
+  lcs: `def lcs(a, b):\n    m, n = len(a), len(b)\n    dp = [[0] * (n + 1) for _ in range(m + 1)]\n    for i in range(1, m + 1):\n        for j in range(1, n + 1):\n            if a[i - 1] == b[j - 1]:\n                dp[i][j] = 1 + dp[i - 1][j - 1]\n            else:\n                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])\n    return dp[m][n]`,
+  coinChange: `def coin_change(coins, amount):\n    dp = [0] + [float('inf')] * amount\n    for i in range(1, amount + 1):\n        for c in coins:\n            if c <= i:\n                dp[i] = min(dp[i], dp[i - c] + 1)\n    return dp[amount]`,
+} as const
+
 export function generateFibonacciDPSteps(n: number): DPStep[] {
   const table = new Array(n + 1).fill(0)
   const steps: DPStep[] = []
@@ -22,7 +31,7 @@ export function generateFibonacciDPSteps(n: number): DPStep[] {
     stateSnapshot: { grid: [table], currentCell: [0, 1], problemName: 'Fibonacci' },
     variables: { dp0: 0, dp1: 1, n },
     complexity: { time: 'O(N)', space: 'O(N)', explanation: 'Tabulation table allocated for N elements.' },
-    highlights: { activeIndices: [0, 1] },
+    highlights: { activeIndices: [0, 1], codeLine: 3 },
   })
 
   for (let i = 2; i <= n; i++) {
@@ -33,7 +42,7 @@ export function generateFibonacciDPSteps(n: number): DPStep[] {
       stateSnapshot: { grid: [[...table]], currentCell: [0, i], problemName: 'Fibonacci' },
       variables: { i, value: table[i], prev1: table[i - 1], prev2: table[i - 2] },
       complexity: { time: 'O(N)', space: 'O(N)', explanation: 'Subproblem solved in O(1) time using previously memoized values.' },
-      highlights: { compareIndices: [i - 1, i - 2], activeIndices: [i] },
+      highlights: { compareIndices: [i - 1, i - 2], activeIndices: [i], codeLine: 5 },
     })
   }
 
@@ -51,14 +60,15 @@ export function generateKnapsackDPSteps(weights: number[] = [2, 3, 4], values: n
     stateSnapshot: { grid: dp.map((r) => [...r]), currentCell: [0, 0], problemName: '0/1 Knapsack' },
     variables: { items: n, capacity },
     complexity: { time: 'O(N * W)', space: 'O(N * W)', explanation: 'Tabulation grid size is N * W.' },
-    highlights: { activeIndices: [0] },
+    highlights: { activeIndices: [0], codeLine: 3 },
   })
 
   for (let i = 1; i <= n; i++) {
     for (let w = 1; w <= capacity; w++) {
       const wt = weights[i - 1]
       const val = values[i - 1]
-      if (wt <= w) {
+      const fits = wt <= w
+      if (fits) {
         dp[i][w] = Math.max(dp[i - 1][w], val + dp[i - 1][w - wt])
       } else {
         dp[i][w] = dp[i - 1][w]
@@ -69,7 +79,7 @@ export function generateKnapsackDPSteps(weights: number[] = [2, 3, 4], values: n
         stateSnapshot: { grid: dp.map((r) => [...r]), currentCell: [i, w], problemName: '0/1 Knapsack' },
         variables: { item: i, weight: wt, val, capacity: w, maxValue: dp[i][w] },
         complexity: { time: 'O(N * W)', space: 'O(N * W)', explanation: 'Filled cell using subproblem recurrence.' },
-        highlights: { activeIndices: [w] },
+        highlights: { activeIndices: [w], codeLine: fits ? 7 : 9 },
       })
     }
   }
@@ -89,12 +99,13 @@ export function generateLCSDPSteps(str1: string = 'ABC', str2: string = 'AC'): D
     stateSnapshot: { grid: dp.map((r) => [...r]), currentCell: [0, 0], problemName: 'Longest Common Subsequence' },
     variables: { str1, str2 },
     complexity: { time: 'O(M * N)', space: 'O(M * N)', explanation: 'LCS table dimension M * N.' },
-    highlights: {},
+    highlights: { codeLine: 3 },
   })
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      if (str1[i - 1] === str2[j - 1]) {
+      const matches = str1[i - 1] === str2[j - 1]
+      if (matches) {
         dp[i][j] = 1 + dp[i - 1][j - 1]
       } else {
         dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
@@ -105,7 +116,7 @@ export function generateLCSDPSteps(str1: string = 'ABC', str2: string = 'AC'): D
         stateSnapshot: { grid: dp.map((r) => [...r]), currentCell: [i, j], problemName: 'LCS' },
         variables: { i, j, char1: str1[i - 1], char2: str2[j - 1], lcsLen: dp[i][j] },
         complexity: { time: 'O(M * N)', space: 'O(M * N)', explanation: 'Matching characters increment subproblem value.' },
-        highlights: { activeIndices: [j] },
+        highlights: { activeIndices: [j], codeLine: matches ? 7 : 9 },
       })
     }
   }
@@ -124,7 +135,7 @@ export function generateCoinChangeDPSteps(coins: number[] = [1, 2, 5], amount: n
     stateSnapshot: { grid: [dp.map((v) => (v === Infinity ? '∞' : v))], currentCell: [0, 0], problemName: 'Coin Change' },
     variables: { amount, coins: coins.join(',') },
     complexity: { time: 'O(Amount * Coins)', space: 'O(Amount)', explanation: 'Tabulation array of size Amount.' },
-    highlights: { activeIndices: [0] },
+    highlights: { activeIndices: [0], codeLine: 2 },
   })
 
   for (let i = 1; i <= amount; i++) {
@@ -139,7 +150,7 @@ export function generateCoinChangeDPSteps(coins: number[] = [1, 2, 5], amount: n
       stateSnapshot: { grid: [dp.map((v) => (v === Infinity ? '∞' : v))], currentCell: [0, i], problemName: 'Coin Change' },
       variables: { amount: i, minCoins: dp[i] === Infinity ? 'Impossible' : dp[i] },
       complexity: { time: 'O(Amount * Coins)', space: 'O(Amount)', explanation: 'Optimal subproblem choice.' },
-      highlights: { activeIndices: [i] },
+      highlights: { activeIndices: [i], codeLine: 6 },
     })
   }
 

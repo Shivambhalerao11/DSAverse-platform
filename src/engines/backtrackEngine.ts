@@ -9,6 +9,12 @@ export interface BacktrackStateSnapshot {
 
 export type BacktrackStep = AlgorithmStep<BacktrackStateSnapshot>
 
+// Canonical Python reference — see arrayEngine.ts for why codeLine is
+// Python-only.
+export const BACKTRACK_CANONICAL_CODE = {
+  nQueens: `def solve(board, row, n):\n    if row == n:\n        return True\n    for col in range(n):\n        if is_safe(board, row, col):\n            board[row][col] = 1\n            if solve(board, row + 1, n):\n                return True\n            board[row][col] = 0\n    return False`,
+} as const
+
 export function generateNQueensSteps(n: number = 4): BacktrackStep[] {
   const steps: BacktrackStep[] = []
   const board: number[][] = Array.from({ length: n }, () => new Array(n).fill(0))
@@ -19,7 +25,7 @@ export function generateNQueensSteps(n: number = 4): BacktrackStep[] {
     stateSnapshot: { board: board.map((r) => [...r]), queensPlaced: 0, n },
     variables: { boardSize: `${n}x${n}`, queensRemaining: n },
     complexity: { time: 'O(N!)', space: 'O(N)', explanation: 'Backtracking prunes invalid branch possibilities.' },
-    highlights: {},
+    highlights: { codeLine: 1 },
   })
 
   // Simulated 4-Queens backtracking decision steps
@@ -32,7 +38,7 @@ export function generateNQueensSteps(n: number = 4): BacktrackStep[] {
       stateSnapshot: { board: board.map((r) => [...r]), queensPlaced: 1, n },
       variables: { currentRow: 1, queensPlaced: 1 },
       complexity: { time: 'O(N!)', space: 'O(N)', explanation: 'Valid position found.' },
-      highlights: { activeIndices: [0] },
+      highlights: { activeIndices: [0], codeLine: 6 },
     })
 
     // Step 2: Try Row 1
@@ -43,7 +49,7 @@ export function generateNQueensSteps(n: number = 4): BacktrackStep[] {
       stateSnapshot: { board: board.map((r) => [...r]), queensPlaced: 2, n },
       variables: { currentRow: 2, queensPlaced: 2 },
       complexity: { time: 'O(N!)', space: 'O(N)', explanation: 'Valid position found.' },
-      highlights: { activeIndices: [2] },
+      highlights: { activeIndices: [2], codeLine: 9 },
     })
 
     // Step 3: Backtrack Row 1 -> Row 0 (0,1)
@@ -60,7 +66,7 @@ export function generateNQueensSteps(n: number = 4): BacktrackStep[] {
       stateSnapshot: { board: board.map((r) => [...r]), queensPlaced: 4, n },
       variables: { status: 'Solved', totalQueens: 4 },
       complexity: { time: 'O(N!)', space: 'O(N)', explanation: 'All N queens placed without conflict.' },
-      highlights: {},
+      highlights: { codeLine: 2 },
     })
   } else {
     steps.push({
@@ -69,7 +75,7 @@ export function generateNQueensSteps(n: number = 4): BacktrackStep[] {
       stateSnapshot: { board: board.map((r) => [...r]), queensPlaced: n, n },
       variables: { status: 'Complete' },
       complexity: { time: 'O(N!)', space: 'O(N)', explanation: 'Backtracking complete.' },
-      highlights: {},
+      highlights: { codeLine: 2 },
     })
   }
 

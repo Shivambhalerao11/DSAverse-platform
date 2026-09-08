@@ -10,6 +10,7 @@ import {
   generateMergeSortSteps,
   generateQuickSortSteps,
   generateHeapSortSteps,
+  SORT_SEARCH_CANONICAL_CODE,
 } from '../engines/sortSearchEngine'
 
 interface SortWorldProps {
@@ -19,6 +20,15 @@ interface SortWorldProps {
 }
 
 type SortAlgo = 'bubble' | 'selection' | 'insertion' | 'merge' | 'quick' | 'heap'
+
+const SORT_CODE: Record<SortAlgo, string> = {
+  bubble: SORT_SEARCH_CANONICAL_CODE.bubbleSort,
+  selection: SORT_SEARCH_CANONICAL_CODE.selectionSort,
+  insertion: SORT_SEARCH_CANONICAL_CODE.insertionSort,
+  merge: SORT_SEARCH_CANONICAL_CODE.mergeSort,
+  quick: SORT_SEARCH_CANONICAL_CODE.quickSort,
+  heap: SORT_SEARCH_CANONICAL_CODE.heapSort,
+}
 
 export default function SortWorld({ onNavigate, isDark = true, onToggleDark }: SortWorldProps) {
   const [array, setArray] = useState<number[]>([8, 3, 9, 1, 6])
@@ -76,6 +86,7 @@ export default function SortWorld({ onNavigate, isDark = true, onToggleDark }: S
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <InputPanel
           label="Sorting Array Input"
@@ -106,12 +117,7 @@ export default function SortWorld({ onNavigate, isDark = true, onToggleDark }: S
           />
         </div>
       }
-      codeContent={`def bubble_sort(arr):
-    n = len(arr)
-    for i in range(n):
-        for j in range(0, n-i-1):
-            if arr[j] > arr[j+1]:
-                arr[j], arr[j+1] = arr[j+1], arr[j]`}
+      codeContent={SORT_CODE[algo]}
     />
   )
 }

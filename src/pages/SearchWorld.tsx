@@ -3,7 +3,7 @@ import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { InputPanel } from '../components/dsa/InputPanel'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
 import { SortSearchVisualizer } from '../components/dsa/visualizers/SortSearchVisualizer'
-import { generateLinearSearchSteps, generateBinarySearchSteps } from '../engines/sortSearchEngine'
+import { generateLinearSearchSteps, generateBinarySearchSteps, SORT_SEARCH_CANONICAL_CODE } from '../engines/sortSearchEngine'
 
 interface SearchWorldProps {
   onNavigate: (view: string) => void
@@ -62,6 +62,7 @@ export default function SearchWorld({ onNavigate, isDark = true, onToggleDark }:
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <InputPanel
@@ -123,17 +124,7 @@ export default function SearchWorld({ onNavigate, isDark = true, onToggleDark }:
           />
         </div>
       }
-      codeContent={`def binary_search(arr, target):
-    left, right = 0, len(arr) - 1
-    while left <= right:
-        mid = (left + right) // 2
-        if arr[mid] == target:
-            return mid
-        elif arr[mid] < target:
-            left = mid + 1
-        else:
-            right = mid - 1
-    return -1`}
+      codeContent={mode === 'binary' ? SORT_SEARCH_CANONICAL_CODE.binarySearch : SORT_SEARCH_CANONICAL_CODE.linearSearch}
     />
   )
 }

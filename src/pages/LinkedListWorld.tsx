@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { InputPanel } from '../components/dsa/InputPanel'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
-import { generateLLTraverseSteps, generateLLInsertSteps, type LLNodeData } from '../engines/linkedListEngine'
+import { generateLLTraverseSteps, generateLLInsertSteps, LINKED_LIST_CANONICAL_CODE, type LLNodeData } from '../engines/linkedListEngine'
 
 interface LinkedListWorldProps {
   onNavigate: (view: string) => void
@@ -56,6 +56,7 @@ export default function LinkedListWorld({ onNavigate, isDark = true, onToggleDar
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--c-text-3)' }}>Node Input Value:</span>
@@ -114,15 +115,13 @@ export default function LinkedListWorld({ onNavigate, isDark = true, onToggleDar
           )}
         </div>
       }
-      codeContent={`class Node:
-    def __init__(self, data):
-        self.data = data
-        self.next = None
-
-# Insert at Head
-new_node = Node(val)
-new_node.next = head
-head = new_node`}
+      codeContent={
+        op === 'traverse'
+          ? LINKED_LIST_CANONICAL_CODE.traverse
+          : op === 'insertHead'
+          ? LINKED_LIST_CANONICAL_CODE.insertHead
+          : LINKED_LIST_CANONICAL_CODE.insertTail
+      }
     />
   )
 }

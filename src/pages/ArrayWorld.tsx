@@ -3,7 +3,7 @@ import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { InputPanel } from '../components/dsa/InputPanel'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
 import { ArrayVisualizer } from '../components/dsa/visualizers/ArrayVisualizer'
-import { generateTraverseSteps, generateSearchSteps, generateReverseSteps } from '../engines/arrayEngine'
+import { generateTraverseSteps, generateSearchSteps, generateReverseSteps, ARRAY_CANONICAL_CODE } from '../engines/arrayEngine'
 import { getDebuggerData } from '../data/dsaDebuggerData'
 import { type SupportedLanguage } from '../data/dsaCodeSnippets'
 
@@ -105,6 +105,11 @@ export default function ArrayWorld({ onNavigate, isDark, onToggleDark }: ArrayWo
       currentStepTitle={`Step ${stepIndex + 1} of ${steps.length}`}
       currentStepDesc={currentEngineStep?.description}
       variables={currentEngineStep?.variables}
+      // codeLine is only meaningful against the Python canonical reference
+      // (see arrayEngine.ts) — only highlight when Python is the selected
+      // display language, otherwise the line number would point at the
+      // wrong line in a different language's code.
+      activeLine={language === 'Python' ? currentEngineStep?.highlights?.codeLine : undefined}
       realWorldApps={[
         'Buffer storage in audio/video streaming',
         'Image pixel grid processing',
@@ -150,7 +155,12 @@ export default function ArrayWorld({ onNavigate, isDark, onToggleDark }: ArrayWo
           />
         </div>
       }
-      codeContent={debuggerData.code}
+      // Python is the only language whose displayed text is guaranteed to
+      // match the engine's codeLine numbering (see ARRAY_CANONICAL_CODE in
+      // arrayEngine.ts) — other languages fall back to dsaDebuggerData's
+      // per-language text, shown without a line highlight (activeLine is
+      // gated to Python above).
+      codeContent={language === 'Python' ? ARRAY_CANONICAL_CODE[op] : debuggerData.code}
     />
   )
 }

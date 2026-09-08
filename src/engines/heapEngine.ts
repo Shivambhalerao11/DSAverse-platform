@@ -3,6 +3,14 @@ import { type AlgorithmStep } from '../types/algorithmStep'
 
 export type HeapStep = AlgorithmStep<number[]>
 
+// Canonical Python reference (min-heap direction shown; max-heap flips the
+// comparison but keeps the same line shape) — see arrayEngine.ts for why
+// codeLine is Python-only.
+export const HEAP_CANONICAL_CODE = {
+  insert: `def insert(heap, val):\n    heap.append(val)\n    i = len(heap) - 1\n    while i > 0 and heap[i] < heap[(i - 1) // 2]:\n        heap[i], heap[(i - 1) // 2] = heap[(i - 1) // 2], heap[i]\n        i = (i - 1) // 2\n    return heap`,
+  extract: `def extract_root(heap):\n    root = heap[0]\n    heap[0] = heap[-1]\n    heap.pop()\n    sift_down(heap, 0)\n    return root`,
+} as const
+
 export function generateHeapInsertSteps(initialHeap: number[], val: number, type: 'min' | 'max' = 'min'): HeapStep[] {
   const heap = [...initialHeap]
   const steps: HeapStep[] = []
@@ -13,7 +21,7 @@ export function generateHeapInsertSteps(initialHeap: number[], val: number, type
     stateSnapshot: [...heap, val],
     variables: { insertVal: val, heapSize: heap.length + 1 },
     complexity: { time: 'O(log N)', space: 'O(1)', explanation: 'Inserted element placed at leaf level.' },
-    highlights: { activeIndices: [heap.length] },
+    highlights: { activeIndices: [heap.length], codeLine: 2 },
   })
 
   heap.push(val)
@@ -30,7 +38,7 @@ export function generateHeapInsertSteps(initialHeap: number[], val: number, type
         stateSnapshot: [...heap],
         variables: { currentIdx: curr, parentIdx: parent, rootVal: heap[0] },
         complexity: { time: 'O(log N)', space: 'O(1)', explanation: `Bubbling up tree height H = log(N).` },
-        highlights: { swapIndices: [curr, parent] },
+        highlights: { swapIndices: [curr, parent], codeLine: 5 },
       })
 
       const tmp = heap[curr]
@@ -48,7 +56,7 @@ export function generateHeapInsertSteps(initialHeap: number[], val: number, type
     stateSnapshot: [...heap],
     variables: { rootValue: heap[0], status: 'Valid Heap' },
     complexity: { time: 'O(log N)', space: 'O(1)', explanation: 'Heap property restored.' },
-    highlights: { activeIndices: [0] },
+    highlights: { activeIndices: [0], codeLine: 7 },
   })
 
   return steps
@@ -78,7 +86,7 @@ export function generateHeapExtractSteps(initialHeap: number[], type: 'min' | 'm
     stateSnapshot: [...heap],
     variables: { extractedValue: extracted, rootValue: heap[0] },
     complexity: { time: 'O(log N)', space: 'O(1)', explanation: 'Root removed and replaced with last leaf.' },
-    highlights: { compareIndices: [0, heap.length - 1] },
+    highlights: { compareIndices: [0, heap.length - 1], codeLine: 3 },
   })
 
   heap[0] = heap[heap.length - 1]
@@ -90,7 +98,7 @@ export function generateHeapExtractSteps(initialHeap: number[], type: 'min' | 'm
     stateSnapshot: [...heap],
     variables: { rootValue: heap[0] || 0, status: 'Restored' },
     complexity: { time: 'O(log N)', space: 'O(1)', explanation: 'Sift down restored heap order.' },
-    highlights: { activeIndices: heap.length > 0 ? [0] : [] },
+    highlights: { activeIndices: heap.length > 0 ? [0] : [], codeLine: 5 },
   })
 
   return steps

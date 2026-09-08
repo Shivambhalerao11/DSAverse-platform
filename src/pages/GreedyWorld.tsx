@@ -4,6 +4,7 @@ import { OperationPanel, type OperationItem } from '../components/dsa/OperationP
 import {
   generateActivitySelectionSteps,
   generateFractionalKnapsackSteps,
+  GREEDY_CANONICAL_CODE,
   type Activity,
 } from '../engines/greedyEngine'
 
@@ -59,6 +60,7 @@ export default function GreedyWorld({ onNavigate, isDark = true, onToggleDark }:
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       operationToolbar={
         <OperationPanel
           operations={operationsList}
@@ -80,15 +82,7 @@ export default function GreedyWorld({ onNavigate, isDark = true, onToggleDark }:
           </div>
         </div>
       }
-      codeContent={`def activity_selection(activities):
-    activities.sort(key=lambda x: x['finish'])
-    selected = [activities[0]]
-    last_finish = activities[0]['finish']
-    for act in activities[1:]:
-        if act['start'] >= last_finish:
-            selected.append(act)
-            last_finish = act['finish']
-    return selected`}
+      codeContent={problem === 'knapsack' ? GREEDY_CANONICAL_CODE.fractionalKnapsack : GREEDY_CANONICAL_CODE.activitySelection}
     />
   )
 }

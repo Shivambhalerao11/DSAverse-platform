@@ -3,7 +3,7 @@ import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { InputPanel } from '../components/dsa/InputPanel'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
 import { TreeVisualizer } from '../components/dsa/visualizers/TreeVisualizer'
-import { generateTreeTraverseSteps, generateBSTInsertSteps } from '../engines/treeEngine'
+import { generateTreeTraverseSteps, generateBSTInsertSteps, TREE_CANONICAL_CODE } from '../engines/treeEngine'
 
 interface TreeWorldProps {
   onNavigate: (view: string) => void
@@ -61,6 +61,7 @@ export default function TreeWorld({ onNavigate, isDark = true, onToggleDark }: T
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <InputPanel
           label="Tree Node Values"
@@ -91,11 +92,7 @@ export default function TreeWorld({ onNavigate, isDark = true, onToggleDark }: T
           />
         </div>
       }
-      codeContent={`def inorder(root):
-    if root:
-        inorder(root.left)
-        print(root.val)
-        inorder(root.right)`}
+      codeContent={op === 'insert' ? TREE_CANONICAL_CODE.bstInsert : TREE_CANONICAL_CODE[op]}
     />
   )
 }

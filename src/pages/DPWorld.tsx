@@ -6,6 +6,7 @@ import {
   generateKnapsackDPSteps,
   generateLCSDPSteps,
   generateCoinChangeDPSteps,
+  DP_CANONICAL_CODE,
 } from '../engines/dpEngine'
 
 interface DPWorldProps {
@@ -15,6 +16,13 @@ interface DPWorldProps {
 }
 
 type DPProblem = 'fibonacci' | 'knapsack' | 'lcs' | 'coin'
+
+const DP_CODE: Record<DPProblem, string> = {
+  fibonacci: DP_CANONICAL_CODE.fibonacci,
+  knapsack: DP_CANONICAL_CODE.knapsack,
+  lcs: DP_CANONICAL_CODE.lcs,
+  coin: DP_CANONICAL_CODE.coinChange,
+}
 
 export default function DPWorld({ onNavigate, isDark = true, onToggleDark }: DPWorldProps) {
   const [problem, setProblem] = useState<DPProblem>('fibonacci')
@@ -59,6 +67,7 @@ export default function DPWorld({ onNavigate, isDark = true, onToggleDark }: DPW
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         problem === 'fibonacci' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -124,13 +133,7 @@ export default function DPWorld({ onNavigate, isDark = true, onToggleDark }: DPW
           </div>
         </div>
       }
-      codeContent={`def fib(n):
-    if n <= 1: return n
-    dp = [0] * (n + 1)
-    dp[1] = 1
-    for i in range(2, n + 1):
-        dp[i] = dp[i-1] + dp[i-2]
-    return dp[n]`}
+      codeContent={DP_CODE[problem]}
     />
   )
 }

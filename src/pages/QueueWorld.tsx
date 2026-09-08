@@ -2,6 +2,7 @@ import { useState } from 'react'
 import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
 import { StackQueueVisualizer } from '../components/dsa/visualizers/StackQueueVisualizer'
+import { generateQueueEnqueueSteps, generateQueueDequeueSteps, generateQueueFrontSteps, QUEUE_CANONICAL_CODE, type QueueStep } from '../engines/queueEngine'
 
 interface QueueWorldProps {
   onNavigate: (view: string) => void
@@ -9,35 +10,39 @@ interface QueueWorldProps {
   onToggleDark?: () => void
 }
 
+type QueueOp = 'enqueue' | 'dequeue' | 'front' | 'clear'
+
 export default function QueueWorld({ onNavigate, isDark = true, onToggleDark }: QueueWorldProps) {
   const [items, setItems] = useState<number[]>([10, 20, 30])
   const [valInput, setValInput] = useState<number>(40)
-  const [opMsg, setOpMsg] = useState('Queue initialized with [10, 20, 30]')
+  const [lastStep, setLastStep] = useState<QueueStep | undefined>(undefined)
+  const [lastOp, setLastOp] = useState<QueueOp>('enqueue')
 
   const handleEnqueue = () => {
-    setItems([...items, valInput])
-    setOpMsg(`Enqueued ${valInput} at REAR of Queue`)
+    const steps = generateQueueEnqueueSteps(items, valInput)
+    setItems(steps[0].stateSnapshot.items)
+    setLastStep(steps[0])
+    setLastOp('enqueue')
     setValInput((v) => v + 10)
   }
 
   const handleDequeue = () => {
-    if (items.length === 0) return
-    const dequeued = items[0]
-    setItems(items.slice(1))
-    setOpMsg(`Dequeued ${dequeued} from FRONT of Queue`)
+    const steps = generateQueueDequeueSteps(items)
+    setItems(steps[0].stateSnapshot.items)
+    setLastStep(steps[0])
+    setLastOp('dequeue')
   }
 
   const handleFront = () => {
-    if (items.length === 0) {
-      setOpMsg('Queue is Empty')
-    } else {
-      setOpMsg(`Front Value: ${items[0]}`)
-    }
+    const steps = generateQueueFrontSteps(items)
+    setLastStep(steps[0])
+    setLastOp('front')
   }
 
   const handleClear = () => {
     setItems([])
-    setOpMsg('Cleared all items from Queue')
+    setLastStep(undefined)
+    setLastOp('clear')
   }
 
   const operationsList: OperationItem[] = [
@@ -60,9 +65,10 @@ export default function QueueWorld({ onNavigate, isDark = true, onToggleDark }: 
       timeComplexity="O(1)"
       spaceComplexity="O(N)"
       complexityDesc="Enqueue at REAR and Dequeue at FRONT operate in O(1) time."
-      currentStepTitle={opMsg}
-      currentStepDesc={opMsg}
-      variables={{ queueSize: items.length, frontValue: items[0] ?? 'Empty', rearValue: items[items.length - 1] ?? 'Empty' }}
+      currentStepTitle={lastStep?.description ?? 'Queue initialized with [10, 20, 30]'}
+      currentStepDesc={lastStep?.description}
+      variables={lastStep?.variables ?? { queueSize: items.length, frontValue: items[0] ?? 'Empty', rearValue: items[items.length - 1] ?? 'Empty' }}
+      activeLine={lastStep?.highlights.codeLine}
       inputPanel={
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--c-text-3)' }}>Enqueue Value:</span>
@@ -99,15 +105,7 @@ export default function QueueWorld({ onNavigate, isDark = true, onToggleDark }: 
           />
         </div>
       }
-      codeContent={`from collections import deque
-
-queue = deque([10, 20, 30])
-
-# Enqueue
-queue.append(40)
-
-# Dequeue
-dequeued = queue.popleft()`}
+      codeContent={lastOp === 'dequeue' ? QUEUE_CANONICAL_CODE.dequeue : lastOp === 'front' ? QUEUE_CANONICAL_CODE.front : QUEUE_CANONICAL_CODE.enqueue}
     />
   )
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import DSAWorkspace from '../components/dsa/DSAWorkspace'
 import { OperationPanel, type OperationItem } from '../components/dsa/OperationPanel'
 import { StackQueueVisualizer } from '../components/dsa/visualizers/StackQueueVisualizer'
+import { generateStackPushSteps, generateStackPopSteps, generateStackPeekSteps, STACK_CANONICAL_CODE, type StackStep } from '../engines/stackEngine'
 
 interface StackWorldProps {
   onNavigate: (view: string) => void
@@ -9,35 +10,39 @@ interface StackWorldProps {
   onToggleDark?: () => void
 }
 
+type StackOp = 'push' | 'pop' | 'peek' | 'clear'
+
 export default function StackWorld({ onNavigate, isDark = true, onToggleDark }: StackWorldProps) {
   const [items, setItems] = useState<number[]>([10, 20, 30])
   const [valInput, setValInput] = useState<number>(40)
-  const [opMsg, setOpMsg] = useState('Stack initialized with [10, 20, 30]')
+  const [lastStep, setLastStep] = useState<StackStep | undefined>(undefined)
+  const [lastOp, setLastOp] = useState<StackOp>('push')
 
   const handlePush = () => {
-    setItems([...items, valInput])
-    setOpMsg(`Pushed ${valInput} onto Stack TOP`)
+    const steps = generateStackPushSteps(items, valInput)
+    setItems(steps[0].stateSnapshot.items)
+    setLastStep(steps[0])
+    setLastOp('push')
     setValInput((v) => v + 10)
   }
 
   const handlePop = () => {
-    if (items.length === 0) return
-    const popped = items[items.length - 1]
-    setItems(items.slice(0, -1))
-    setOpMsg(`Popped ${popped} from Stack TOP`)
+    const steps = generateStackPopSteps(items)
+    setItems(steps[0].stateSnapshot.items)
+    setLastStep(steps[0])
+    setLastOp('pop')
   }
 
   const handlePeek = () => {
-    if (items.length === 0) {
-      setOpMsg('Stack is Empty')
-    } else {
-      setOpMsg(`Peeked TOP value: ${items[items.length - 1]}`)
-    }
+    const steps = generateStackPeekSteps(items)
+    setLastStep(steps[0])
+    setLastOp('peek')
   }
 
   const handleClear = () => {
     setItems([])
-    setOpMsg('Cleared all items from Stack')
+    setLastStep(undefined)
+    setLastOp('clear')
   }
 
   const operationsList: OperationItem[] = [
@@ -60,9 +65,10 @@ export default function StackWorld({ onNavigate, isDark = true, onToggleDark }: 
       timeComplexity="O(1)"
       spaceComplexity="O(N)"
       complexityDesc="Push and Pop operate in O(1) constant time at the TOP."
-      currentStepTitle={opMsg}
-      currentStepDesc={opMsg}
-      variables={{ stackSize: items.length, topValue: items[items.length - 1] ?? 'Empty' }}
+      currentStepTitle={lastStep?.description ?? 'Stack initialized with [10, 20, 30]'}
+      currentStepDesc={lastStep?.description}
+      variables={lastStep?.variables ?? { stackSize: items.length, topValue: items[items.length - 1] ?? 'Empty' }}
+      activeLine={lastStep?.highlights.codeLine}
       inputPanel={
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--c-text-3)' }}>Push Value:</span>
@@ -99,13 +105,7 @@ export default function StackWorld({ onNavigate, isDark = true, onToggleDark }: 
           />
         </div>
       }
-      codeContent={`stack = [10, 20, 30]
-
-# Push onto stack
-stack.append(40)
-
-# Pop from stack
-popped = stack.pop()`}
+      codeContent={lastOp === 'pop' ? STACK_CANONICAL_CODE.pop : lastOp === 'peek' ? STACK_CANONICAL_CODE.peek : STACK_CANONICAL_CODE.push}
     />
   )
 }

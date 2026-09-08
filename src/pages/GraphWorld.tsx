@@ -6,6 +6,7 @@ import {
   generateBFSSteps,
   generateDFSSteps,
   generateDijkstraSteps,
+  GRAPH_CANONICAL_CODE,
 } from '../engines/graphEngine'
 
 interface GraphWorldProps {
@@ -83,6 +84,7 @@ export default function GraphWorld({ onNavigate, isDark = true, onToggleDark }: 
       currentStepTitle={`Step ${stepIndex + 1}: ${currentStep?.description || ''}`}
       currentStepDesc={currentStep?.description}
       variables={currentStep?.variables}
+      activeLine={currentStep?.highlights.codeLine}
       inputPanel={
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
@@ -118,14 +120,7 @@ export default function GraphWorld({ onNavigate, isDark = true, onToggleDark }: 
           />
         </div>
       }
-      codeContent={`def bfs(graph, start):
-    visited, queue = set([start]), [start]
-    while queue:
-        vertex = queue.pop(0)
-        for neighbor in graph[vertex]:
-            if neighbor not in visited:
-                visited.add(neighbor)
-                queue.append(neighbor)`}
+      codeContent={GRAPH_CANONICAL_CODE[algo]}
     />
   )
 }

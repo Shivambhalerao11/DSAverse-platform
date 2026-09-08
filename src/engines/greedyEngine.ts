@@ -18,6 +18,13 @@ export interface KnapsackItem {
 
 export type GreedyStep = AlgorithmStep<{ selectedActivities?: Activity[]; selectedItems?: KnapsackItem[]; currentActivity?: Activity; currentItem?: KnapsackItem }>
 
+// Canonical Python reference per problem — see arrayEngine.ts for why
+// codeLine is Python-only.
+export const GREEDY_CANONICAL_CODE = {
+  activitySelection: `def activity_selection(activities):\n    activities.sort(key=lambda a: a.finish)\n    selected = []\n    last_finish = -1\n    for act in activities:\n        if act.start >= last_finish:\n            selected.append(act)\n            last_finish = act.finish\n    return selected`,
+  fractionalKnapsack: `def fractional_knapsack(items, capacity):\n    items.sort(key=lambda i: i.value / i.weight, reverse=True)\n    total = 0\n    for item in items:\n        take = min(item.weight, capacity)\n        total += take * (item.value / item.weight)\n        capacity -= take\n    return total`,
+} as const
+
 export function generateActivitySelectionSteps(activities: Activity[]): GreedyStep[] {
   if (activities.length === 0) {
     return [
@@ -42,7 +49,7 @@ export function generateActivitySelectionSteps(activities: Activity[]): GreedySt
     stateSnapshot: { selectedActivities: [] },
     variables: { totalActivities: sorted.length, status: 'Sorted by Finish Time' },
     complexity: { time: 'O(N log N)', space: 'O(N)', explanation: 'Sorting by finish time allows greedy activity selection.' },
-    highlights: {},
+    highlights: { codeLine: 2 },
   })
 
   let lastFinish = -1
@@ -61,7 +68,7 @@ export function generateActivitySelectionSteps(activities: Activity[]): GreedySt
       stateSnapshot: { selectedActivities: [...selected], currentActivity: act },
       variables: { activityName: act.name, start: act.start, finish: act.finish, accepted: isOptimal },
       complexity: { time: 'O(N log N)', space: 'O(N)', explanation: 'Local optimal choice ensures global maximum non-overlapping activities.' },
-      highlights: { activeIndices: [idx] },
+      highlights: { activeIndices: [idx], codeLine: isOptimal ? 7 : 6 },
     })
   })
 
@@ -92,7 +99,7 @@ export function generateFractionalKnapsackSteps(items: { name: string; weight: n
     stateSnapshot: { selectedItems: [] },
     variables: { capacity, totalItems: formatted.length },
     complexity: { time: 'O(N log N)', space: 'O(N)', explanation: 'Greedy choice picks items with highest value density first.' },
-    highlights: {},
+    highlights: { codeLine: 2 },
   })
 
   formatted.forEach((item, idx) => {
@@ -110,7 +117,7 @@ export function generateFractionalKnapsackSteps(items: { name: string; weight: n
       stateSnapshot: { selectedItems: [...selected], currentItem: item },
       variables: { item: item.name, takenWeight: takeWeight, totalValue: totalVal, remainingCapacity: remainingCap },
       complexity: { time: 'O(N log N)', space: 'O(N)', explanation: 'Highest value density item yields optimal total value.' },
-      highlights: { activeIndices: [idx] },
+      highlights: { activeIndices: [idx], codeLine: 6 },
     })
   })
 
