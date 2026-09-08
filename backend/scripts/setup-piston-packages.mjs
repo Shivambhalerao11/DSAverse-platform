@@ -14,7 +14,7 @@
 // language, so it stays correct regardless of exactly which versions are
 // currently published.
 
-const PISTON_API_URL = process.env.PISTON_API_URL || "http://127.0.0.1:20000"
+const PISTON_API_URL = process.env.PISTON_API_URL || "https://emkc.org/api/v2/piston"
 
 // Piston's package "language" field is not always the same string as the
 // language name Piston's /execute endpoint expects (e.g. JavaScript often
@@ -30,13 +30,21 @@ const TARGETS = {
 }
 
 async function main() {
-  console.log(`Fetching package catalog from ${PISTON_API_URL}/api/v2/packages ...`)
-  const catalogRes = await fetch(`${PISTON_API_URL}/api/v2/packages`)
-  if (!catalogRes.ok) {
-    throw new Error(`GET /api/v2/packages failed: ${catalogRes.status} ${await catalogRes.text()}`)
+  console.log(`Checking runtimes from ${PISTON_API_URL}/api/v2/runtimes ...`)
+  const runtimesRes = await fetch(`${PISTON_API_URL}/api/v2/runtimes`)
+  if (runtimesRes.ok) {
+    const runtimes = await runtimesRes.json()
+    console.log(`\nAvailable runtimes on ${PISTON_API_URL}: (${runtimes.length} installed)`)
+    for (const [ourName, candidates] of Object.entries(TARGETS)) {
+      const match = runtimes.find((r) => candidates.includes(r.language) || r.aliases?.some((a) => candidates.includes(a)))
+      if (match) {
+        console.log(`  ✓ ${ourName.padEnd(12)} -> ${match.language}@${match.version}`)
+      } else {
+        console.warn(`  ✗ ${ourName.padEnd(12)} -> No match found in candidates: ${candidates.join(", ")}`)
+      }
+    }
+    return
   }
-  /** @type {Array<{ language: string, language_version: string, installed: boolean }>} */
-  const catalog = await catalogRes.json()
 
   for (const [ourName, candidates] of Object.entries(TARGETS)) {
     const matches = catalog.filter((pkg) => candidates.includes(pkg.language))
