@@ -59,8 +59,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const { data: { user }, error } = await supabase.auth.getUser(token)
 
     if (error || !user) {
+      // Logged server-side only - the client gets a generic message, not
+      // Supabase's internal error detail.
       console.error("[requireAuth] supabase.auth.getUser error:", error)
-      res.status(401).json({ error: "Invalid or expired token.", details: error?.message })
+      res.status(401).json({ error: "Invalid or expired token." })
       return
     }
 
@@ -68,7 +70,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     next()
   } catch (err) {
     console.error("[requireAuth] catch error:", err)
-    res.status(401).json({ error: "Invalid or expired token.", details: String(err) })
+    res.status(401).json({ error: "Invalid or expired token." })
   }
 }
 
