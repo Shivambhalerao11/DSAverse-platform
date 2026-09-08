@@ -21,7 +21,9 @@ const LANGUAGE_ALIASES: Record<OurLanguage, string[]> = {
   python: ["python", "python3"],
   javascript: ["javascript", "node", "nodejs"],
   java: ["java"],
-  cpp: ["c++", "cpp", "gcc"],
+  // Live check (2026-09-09): Piston public API returns language="c" for GCC.
+  // Keeping c++/cpp/gcc as fallbacks for self-hosted instances that differ.
+  cpp: ["c", "c++", "cpp", "gcc"],
 }
 
 interface PistonRuntime {
@@ -42,9 +44,9 @@ async function getRuntimes(): Promise<PistonRuntime[]> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return cache.runtimes
   }
-  const res = await fetch(`${env.pistonApiUrl}/api/v2/runtimes`)
+  const res = await fetch(`${env.pistonApiUrl}/runtimes`)
   if (!res.ok) {
-    throw new Error(`Piston /api/v2/runtimes failed: ${res.status} ${await res.text()}`)
+    throw new Error(`Piston /runtimes failed: ${res.status} ${await res.text()}`)
   }
   const runtimes = (await res.json()) as PistonRuntime[]
   cache = { fetchedAt: Date.now(), runtimes }
@@ -103,7 +105,7 @@ export async function executeOnPiston(params: {
 }): Promise<PistonExecuteResult> {
   const { language, version } = await resolveRuntime(params.language)
 
-  const res = await fetch(`${env.pistonApiUrl}/api/v2/execute`, {
+  const res = await fetch(`${env.pistonApiUrl}/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -121,7 +123,7 @@ export async function executeOnPiston(params: {
   })
 
   if (!res.ok) {
-    throw new Error(`Piston /api/v2/execute failed: ${res.status} ${await res.text()}`)
+    throw new Error(`Piston /execute failed: ${res.status} ${await res.text()}`)
   }
 
   const data = (await res.json()) as PistonExecuteResponse
