@@ -29,10 +29,11 @@ services:
     container_name: dsaverse_piston
     restart: unless-stopped
     privileged: true
-    network_mode: "host"
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    ports:
+      - "20000:2000"
     volumes:
       - piston_packages:/piston/packages
     tmpfs:
