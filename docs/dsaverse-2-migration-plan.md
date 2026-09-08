@@ -1,6 +1,6 @@
-# DSAverse 2.0 Migration Plan — Phase 0
+# DSAverse 2.0 Migration Plan
 
-**Status:** Phase 0 (analysis + architecture + plan). Awaiting approval before any implementation.
+**Status:** Phase 0 complete and approved. Decisions D1–D5 resolved (§7). Phase 1 in progress.
 **Branch:** `dsaverse-2-migration`
 **Last updated:** 2026-09-08
 
@@ -375,26 +375,23 @@ real rework · **New** = does not exist, must be built.
 |---|---|---|---|
 | Frontend framework/build | React 19 + Vite 8 + Tailwind v4, TS strict, lazy-chunked pages | Same, plus a problem-library/workspace UI in the new visual language | **Reuse** the toolchain; **New** UI surfaces |
 | Routing | Hand-rolled `View` string-union + `pushState` | Needs `/lab`, `/lab/:id`, `/worlds/...`, `/profile`, `/login` etc. | **Modify** — extend `ROUTE_MAP`/`View`, keep the pattern (no reason to add a router lib for this scale) |
-| Backend/API server | **None** — all `fetch` calls target a nonexistent `localhost:8000` and silently fall back to mocks | Real API for auth, problems, submissions, progress | **New**, entirely |
-| Database | **None** | User accounts, problems, submissions, progress, bookmarks | **New**, entirely |
-| Auth | Client-only fake tokens, simulated OAuth redirects | Real session-based or JWT auth against real accounts | **New** backend; **Modify** frontend (the OAuth URL-building code in `githubAuth.ts`/`googleAuth.ts` is actually correct and reusable once a backend exists to complete the exchange) |
+| Backend/API server | **None** — all `fetch` calls target a nonexistent `localhost:8000` and silently fall back to mocks | Node/Express + TS, `/api/v1`, deployed to Railway/Render (D2) | **New**, entirely |
+| Database | **None** | Postgres via Supabase: profiles, problems, submissions, progress, bookmarks, classes/assignments (D2, D3) | **New**, entirely |
+| Auth | Client-only fake tokens, simulated OAuth redirects | Supabase Auth (client-side `supabase-js`) issuing JWTs the Express backend verifies (D2) | **New** backend verification middleware; **Replace** the simulated OAuth exchange in `githubAuth.ts`/`googleAuth.ts` with Supabase's built-in OAuth handling |
 | XP/streak/progress | `localStorage` counters, hardcoded dashboard leaderboard | Server-persisted, multi-user, real leaderboard | **New** backend; **Modify** `xpService.ts` into an API client keeping its function signatures |
 | Problem content | Doesn't exist (DSA Worlds pages, not "problems") | 100–200 curated problems w/ statement, examples, constraints, solution(s), visualization data | **New** |
-| Code execution | Fully simulated (`executionService.ts`) | Real sandboxed execution for Run/Submit, at least for a primary language | **New** |
+| Code execution | Fully simulated (`executionService.ts`) | Self-hosted Piston via Docker; Python/JS/Java/C++ first (D4), landed early (Phase 2) | **New** |
 | Visualization engine (contract) | `AlgorithmStep<T>` type exists, well-designed | Same shape works for problems too | **Reuse** the type contract |
 | Visualization engine (wiring) | `codeLine` populated in only 2/11 engines; **never** consumed by any page (§2.8) | Every problem's code execution must drive the visualizer per-line | **Modify/rebuild** — this is the `.kiro` spec's job, generalized to also cover problems, not just DSA Worlds |
 | Visualization data authoring at scale | 1 problem, hand-authored (`buildSteps()` in the design) | 100–200 problems | **New** — needs the deterministic/traced/LLM-hybrid pipeline the brief calls for (own later phase) |
-| AI tutor/assistant | Real multi-provider factory + Mock default; Gemini/OpenAI call the vendor API **from the browser** with a client-exposed key | Keep the tutor concept; move any real key usage server-side | **Modify** — reuse `AIProvider` interface, move network calls behind a backend proxy |
-| DSA Worlds (16 topics) | Fully built, builds clean, `useVisualization` hook is solid | Must keep working, reachable from new nav | **Reuse** the pages/engines; **Modify** navigation/shell only (per user's "preserve capability, not the old UI" instruction) — and resolve the 11-vs-16 taxonomy mismatch (Decision D1) |
-| Teacher dashboard | Exists, `localStorage`-backed | **Unverified** whether in scope — not mentioned in the design or the brief's "LeetCode Lab" scope | Needs a scope decision (Decision D3) |
+| AI tutor/assistant | Real multi-provider factory + Mock default; Gemini/OpenAI call the vendor API **from the browser** with a client-exposed key | Gemini only (D5), proxied through the backend | **Modify** — reuse `AIProvider` interface, move network calls behind a backend proxy |
+| DSA Worlds (16 topics) | Fully built, builds clean, `useVisualization` hook is solid | Must keep working, reachable from new nav; all 16 stay (D1) | **Reuse** the pages/engines; **Modify** navigation/shell only (per user's "preserve capability, not the old UI" instruction) |
+| Teacher dashboard | Exists, `localStorage`-backed | In scope (D3) — real backend wiring (Phase 7) | **Modify** `teacherService.ts` into a real API client |
 | Tests | **None** — no test runner installed, no test files exist despite `.kiro` spec calling for `vitest`-style unit tests | Per-runner unit tests per `.kiro` requirements | **New** — install a test runner as part of engine work |
 
 ---
 
-## 5. Target Architecture
-
-Each decision below is justified against something found in discovery, not
-generic best practice.
+## 5. Target Architecture (finalized per Decisions D1–D5, §7)
 
 **Frontend stays React 19 + Vite 8 + Tailwind v4, hand-rolled router
 extended, not replaced.** The existing router is small, already handles
@@ -404,23 +401,42 @@ union members and `ROUTE_MAP` entries. Introducing React Router or similar
 would touch all 20 existing pages for a benefit the current app doesn't
 need at this scale.
 
-**A real backend is mandatory — not optional.** Every "backend" touchpoint
-today is a silently-swallowed failure. There is no way to add multi-user
-accounts, a real leaderboard, real submission history, or real code
-execution without a server; the brief explicitly requires persistent
-accounts and cross-device progress, which `localStorage` fundamentally
-cannot provide. **Unverified/decision needed:** language/framework for this
-backend (Node/TS to share types with the frontend, vs. something else) —
-see Decision D2.
+**Backend: Node.js + Express + TypeScript, in a new `backend/` directory in
+this repo (D2).** Shares types (`AlgorithmStep`, API DTOs) with the frontend
+via a small shared-types package or path, matches the existing `/api/v1`
+convention already assumed by `src/services/api.ts`, and needs no new
+language toolchain in an already-TypeScript-strict codebase.
 
-**Code execution: use a managed sandboxed-execution provider (e.g. Judge0-
-style API) rather than building a sandbox in-house.** Nothing in this repo
-suggests in-house sandboxing expertise (no Docker/container config exists
-anywhere), and the brief's real goal is *visualization*, not building a
-competitive-programming judge from scratch. The execution result only needs
-to (a) prove correctness against test cases and (b) supply the primary
-language's stdout for the terminal panel — it does not need to itself drive
-the visualizer (see below).
+**Data + auth: Supabase (managed Postgres + Auth) (D2).** Auth flow: the
+frontend authenticates directly against Supabase Auth via `@supabase/
+supabase-js` (email/password + GitHub/Google OAuth — Supabase handles the
+OAuth exchange itself, which replaces the simulated flow in `githubAuth.ts`/
+`googleAuth.ts`, §2.4) and receives a Supabase-issued JWT. The Express
+backend never issues its own tokens — it **verifies** the Supabase JWT on
+every protected route (via Supabase's JWKS/JWT secret) and uses the
+verified `user.id` to scope all queries. Postgres (via Supabase) holds
+`profiles`, `problems`, `submissions`, `bookmarks`, `xp_events`,
+`classes`/`assignments` (for the Teacher Dashboard, D3). Row-Level Security
+policies enforce per-user scoping at the DB layer as a second line of
+defense behind the Express auth middleware.
+
+**Deploy target: Railway or Render, not serverless (D2).** Code execution
+(next paragraph) needs a persistent, long-lived process that can talk to a
+sibling Piston container over the private network — this rules out
+serverless functions (Vercel/Netlify-style), which cannot host a
+co-located Docker daemon or hold a warm connection to one.
+
+**Code execution: self-hosted Piston via Docker, no paid execution API
+(D4).** [Piston](https://github.com/engineer-man/piston) runs as its own
+container (official image `ghcr.io/engineer-man/piston`), and the Express
+backend proxies `/api/v1/execute` to Piston's HTTP API. First-class
+languages: **Python, JavaScript, Java, C++** (matches the design's editor
+language tabs plus the team's stated priority — Go and the other 9
+languages `executionService.ts` currently fakes are explicitly deferred,
+not promised). This lands in Phase 2, immediately after the backend
+scaffold — per the team's explicit instruction that real execution is core
+to the product, not a stretch feature, it is **not** deferred to the
+problem-library phase the way the original Phase 0 draft had it.
 
 **Visualization stays deterministic and decoupled from real code
 execution.** The type contract already in `src/types/algorithmStep.ts` is
@@ -431,54 +447,100 @@ the *reference* solution, per the brief's later AI-pipeline phase) and
 served as data, not computed live from arbitrary user-submitted code. This
 matches what's already built for the 16 DSA Worlds (engines run upfront,
 `steps[]` is static, playback is pure index movement) and avoids the much
-harder, more fragile problem of mapping arbitrary student code in 13
-languages to visualization state in real time. Live user code only needs to
-go through the sandboxed executor for pass/fail + stdout; the *visualizer*
-plays the canonical, pre-traced solution.
+harder, more fragile problem of mapping arbitrary student code in 4+
+languages to visualization state in real time. Live user code only goes
+through Piston for pass/fail + stdout; the *visualizer* plays the
+canonical, pre-traced reference solution.
 
-**AI tutor: keep the `AIProvider` interface, move real network calls behind
-the new backend.** The interface (`sendMessage(prompt, context)`) is
-already provider-agnostic and well-shaped; the only real problem (§2.6) is
-that a real API key would currently leak into the client bundle. Proxying
-through the backend fixes this with no interface change on the frontend
-side.
+**AI tutor: Gemini, proxied through the new backend (D5).** `GeminiProvider.ts`
+is already the stubbed provider and the team's existing preference
+elsewhere, so it becomes the sole AI path going forward (OpenAI/Mock
+providers stay in the codebase as the existing `AIProvider` interface's
+other implementations but are not wired to a live key). The interface
+(`sendMessage(prompt, context)`) is already provider-agnostic; the only real
+problem (§2.6) is that a real API key would currently leak into the client
+bundle. The backend holds `GEMINI_API_KEY` server-side and proxies
+`/api/v1/ai/tutor` — no frontend interface change.
 
-**DSA Worlds: keep the engines, replace the shell they render into.** Per
-the user's explicit instruction, preserving capability doesn't mean
-preserving the old UI. The 11 engine files and `useVisualization` hook are
-reusable; `DSALayout.tsx` and `DSAWorkspace.tsx` (two competing shells,
-§2.10) should be consolidated into one shell that matches the new visual
-language, reusing `CodePanel`/visualizer components underneath.
+**DSA Worlds: all 16 topics stay the source of truth; the design's nav is
+extended, not the app's content collapsed (D1).** The design's "legacy"
+11-topic grouping was made without visibility into the real app's 16 built,
+working topics (Searching, BST, Hash Tables, Trie, and Greedy as their own
+entries, §2.10) — collapsing to match the mockup would delete real,
+working content to fit a wireframe. The new shell's worlds-nav is extended
+to list all 16, grouped using the design's Foundations/Intermediate/
+Advanced-style presentation rather than its specific 11-item list. Per the
+user's standing instruction, preserving capability doesn't mean preserving
+the old UI: the 11 engine files and `useVisualization` hook are reusable;
+`DSALayout.tsx` and `DSAWorkspace.tsx` (two competing shells, §2.10) get
+consolidated into one shell matching the new visual language, reusing
+`CodePanel`/visualizer components underneath.
+
+**Teacher Dashboard stays in scope (D3).** `TeacherDashboard.tsx` and
+`teacherService.ts` get wired to real backend data (`classes`,
+`assignments`, `assignment_submissions` tables) alongside the student-facing
+build-out rather than being frozen or dropped — see Phase 7.
 
 ---
 
 ## 6. Phased Plan
 
-Phase 0 is this document. Phases 1+ are proposed below; **none of this code
-is written yet** — this plan stops for approval per the brief.
+Phase 0 is the analysis above. Phase order below is revised from the
+original Phase-0 draft to reflect D4 explicitly: **code execution moves up
+to Phase 2**, immediately after the backend scaffold, instead of being
+deferred to the problem-library phase.
 
-### Phase 1 — Architecture finalization + backend scaffold
-- **Objective:** Answer the open decisions (§7), stand up a minimal real
-  backend (auth + a health-checked API base) so every subsequent phase has
-  something real to call instead of a fallback mock.
-- **Prerequisites:** Decisions D1–D5 answered.
-- **Areas touched:** new `backend/` (or sibling repo, per D2) directory;
-  `.env.example` added to this repo; `src/services/api.ts`,
-  `authService.ts` get their `VITE_API_BASE_URL` pointed at something real.
-- **Risks:** choosing a backend stack/hosting prematurely; mitigate by
-  keeping the API surface small and versioned (`/api/v1`, already the
-  convention in `api.ts`).
-- **Verification:** `npm run build` still succeeds; a real `/auth/login`
-  round-trip works against the new backend in dev; DSA Worlds pages still
-  load (`npm run dev`, click through all 16 topic links).
-- **Acceptance criteria:** a user can register/log in for real and the
-  session survives a reload from a real token, not a fabricated one.
+### Phase 1 — Backend scaffold + Supabase auth (in progress, this session)
+- **Objective:** Stand up a real Express + TypeScript backend with a
+  health-checked `/api/v1` base and real Supabase-backed authentication, so
+  every later phase has something real to call instead of a fallback mock.
+- **Prerequisites:** none — decisions resolved.
+- **Areas touched:** new `backend/` directory (Express + TS scaffold,
+  Supabase client, JWT-verification middleware, health route); `.env.example`
+  files (backend and frontend); SQL migration for a `profiles` table
+  (auth-linked) as the first real table.
+- **Risks:** live verification of Supabase auth requires a real Supabase
+  project's URL/keys, which this session does not have — scaffolding and
+  schema will be complete and buildable, but the actual sign-up/sign-in
+  round-trip needs the user to supply project credentials and verify once.
+- **Verification:** backend `tsc --noEmit` clean; backend builds; health
+  endpoint returns 200 locally; frontend `npm run build`/`tsc` still clean;
+  DSA Worlds pages still load unaffected (this phase doesn't touch `src/pages`).
+- **Acceptance criteria:** backend scaffold runs locally and responds on
+  `/api/v1/health`; auth middleware correctly rejects requests with no/
+  invalid token; documented steps exist for the user to plug in real
+  Supabase credentials and confirm a live signup/login round-trip.
 
-### Phase 2 — Visualization engine rewrite (generalizes `.kiro` spec)
+### Phase 2 — Code execution: self-hosted Piston
+- **Objective:** Real Run/Submit for Python, JavaScript, Java, C++ — no more
+  `simulateLocalExecution()` (§2.7). Landed early per D4.
+- **Prerequisites:** Phase 1's Express scaffold.
+- **Areas touched:** `docker-compose.yml` for the Piston container; backend
+  `/api/v1/execute` route proxying to Piston; `src/services/
+  executionService.ts` on the frontend points at the real endpoint instead
+  of the simulation fallback (fallback code stays only as an offline/dev
+  convenience, not the default path).
+- **Risks:** this session's sandbox has no Docker available (verified:
+  `docker --version` → not found, checked both in the Bash tool and via
+  PowerShell `Get-Command docker`) — the compose file and proxy route will
+  be written and code-reviewed here, but **actually running Piston and
+  confirming real execution needs to happen on a machine/host with Docker**
+  (the user's machine, or directly on the Railway/Render deploy target).
+- **Verification:** here — backend route compiles and returns a well-formed
+  error when Piston is unreachable (proves the proxy logic, not execution
+  itself). On a Docker-capable host — `docker compose up`, then a real
+  `POST /api/v1/execute` for each of the 4 languages returns correct stdout
+  for a trivial program.
+- **Acceptance criteria:** all 4 first-class languages execute real
+  submitted code and return real stdout/stderr/exit code; documented in
+  this doc which parts were verified here vs. still need a Docker-capable
+  host.
+
+### Phase 3 — Visualization engine rewrite (generalizes `.kiro` spec)
 - **Objective:** Fix the `codeLine` sync gap (§2.8) and generalize the
   existing `AlgorithmStep` contract so it can drive both DSA Worlds *and*
   problem solutions.
-- **Prerequisites:** none — can start in parallel with Phase 1.
+- **Prerequisites:** none — can run in parallel with Phases 1–2.
 - **Areas touched:** adapt `.kiro/specs/interactive-dsa-visualization-engine/`
   into `src/engine/` (types, `useStepPlayer`, `parseInput`); wire real
   `activeLine` through all 16 `pages/*World.tsx` → `DSAWorkspace`; add a
@@ -494,92 +556,93 @@ is written yet** — this plan stops for approval per the brief.
 - **Acceptance criteria:** Requirement 20 from `.kiro/.../requirements.md`
   is met for all 16 modules.
 
-### Phase 3 — New frontend shell (Lab/Workspace/Profile screens, no real data yet)
+### Phase 4 — New frontend shell (Lab/Workspace/Profile/Mobile screens, no real data yet)
 - **Objective:** Build the new screens from §3.1 as real React components in
   this stack (not the exported `.dc.html`), wired to local/mock data first
   so layout and interaction can be verified before backend integration.
+  Worlds nav is extended to all 16 real topics per D1, not collapsed to the
+  design's 11.
 - **Areas touched:** new `src/pages/{Lab,Workspace,Profile}.tsx` (or similar),
-  extend `View`/`ROUTE_MAP` in `App.tsx`, likely a new shared shell
-  component consolidating `DSALayout`/`DSAWorkspace` per §5.
+  extend `View`/`ROUTE_MAP` in `App.tsx`, a new shared shell component
+  consolidating `DSALayout`/`DSAWorkspace` per §5.
 - **Risks:** scope creep into pixel-matching every animation in the
   prototype; the design is direction, not spec — flag deviations rather
   than blocking on exact parity.
 - **Verification:** manual click-through of every screen in the running
   dev server; confirm DSA Worlds nav still reachable and functional.
 - **Acceptance criteria:** all 6 screens exist and navigate correctly with
-  placeholder/mock data.
+  placeholder/mock data; worlds nav lists all 16 real topics.
 
-### Phase 4 — Frontend/backend integration
-- **Objective:** Replace Phase 3's mock data with real calls to the Phase 1
-  backend (auth, profile, XP/streak).
+### Phase 5 — Frontend/backend integration
+- **Objective:** Replace Phase 4's mock data with real calls to the Phase 1
+  backend (Supabase auth, profile, XP/streak) and the Phase 2 executor.
 - **Verification:** multi-account manual test (two browsers/sessions show
-  independent progress); reload persistence check.
+  independent progress); reload persistence check; Run button in the new
+  Workspace shell calls the real Piston-backed endpoint.
 
-### Phase 5 — Problem library + workspace (content + execution)
-- **Objective:** Real problem storage, the library table backed by a real
-  query (search/filter/sort), Run/Submit against the sandboxed executor
-  from §5.
+### Phase 6 — Problem library + workspace content
+- **Objective:** Real problem storage (`problems`, `submissions`,
+  `bookmarks` tables), the library table backed by a real query (search/
+  filter/sort), Run/Submit end-to-end against Piston with grading.
 - **Risks:** this is the largest single phase; consider seeding with a
   small problem set (10–20) before the full 100–200.
 - **Verification:** at least one problem, end-to-end, for a real logged-in
   user: browse → open → edit → run → submit → XP awarded → shows solved in
   library.
 
-### Phase 6 — Visualization data pipeline (deterministic/traced/LLM-assisted)
+### Phase 7 — Teacher Dashboard backend wiring (D3)
+- **Objective:** `classes`, `assignments`, `assignment_submissions` tables;
+  `teacherService.ts` becomes a real API client instead of `localStorage`.
+- **Verification:** a teacher account can create an assignment a student
+  account can see and submit against.
+
+### Phase 8 — Visualization data pipeline (deterministic/traced/LLM-assisted)
 - **Objective:** Generate `AlgorithmStep[]` data for the seeded problem set
-  using the Phase 2 engine contract, per the brief's evaluation of
+  using the Phase 3 engine contract, per the brief's evaluation of
   deterministic logic / execution tracing / structured LLM output /
-  templates — not a custom model.
+  templates — not a custom model. Gemini (D5) is the LLM path where a
+  structured-output step is used.
 - **Note:** this is explicitly a later phase per the brief; not designed in
   depth here.
 
-### Phase 7 — DSA Worlds re-integration into the new shell
-- **Objective:** Point the 16 existing topic pages at the Phase 3 shell,
-  resolve the taxonomy question (Decision D1), retire the old
-  `DSALayout`/`DSAWorkspace` split.
+### Phase 9 — DSA Worlds re-integration into the new shell
+- **Objective:** Point the 16 existing topic pages at the Phase 4 shell,
+  retire the old `DSALayout`/`DSAWorkspace` split.
 - **Verification:** every one of the 16 existing topic URLs still resolves
   and functions.
 
-### Phase 8 — Content population to full scale (100–200 problems)
-### Phase 9 — Testing/polish/accessibility pass
+### Phase 10 — Content population to full scale (100–200 problems)
+### Phase 11 — Testing/polish/accessibility pass
 - Ports `.kiro` requirement 21 (accessibility) across both DSA Worlds and
   the new Lab/Workspace screens.
 
-Every phase ends with: run `npx tsc --noEmit`, run `npm run build`, run the
-test suite (once one exists, from Phase 2 on), boot `npm run dev` and
-manually click through both DSA Worlds and the new screens, and a commit
-checkpoint on `dsaverse-2-migration` describing what changed and what was
-verified.
+Every phase ends with: run `npx tsc --noEmit` (frontend and backend), run
+`npm run build`, run the test suite (once one exists, from Phase 3 on),
+boot `npm run dev` and manually click through both DSA Worlds and the new
+screens, and a commit checkpoint on `dsaverse-2-migration` describing what
+changed and what was verified — explicitly flagging anything that could
+only be verified partially in this sandboxed session (e.g. no Docker, no
+live Supabase project) versus what still needs the user to confirm on a
+capable host.
 
 ---
 
-## 7. Decisions needed before implementation starts
+## 7. Decisions (resolved 2026-09-08)
 
-- **D1 — DSA Worlds taxonomy reconciliation.** The design's "legacy" DSA
-  Worlds section lists **11** topics (Arrays & Indexing, Strings & Chars,
-  Two Pointers, Stacks & Queues, Linked Lists, Recursion & Trees, Graphs,
-  Heaps & Intervals, Dynamic Programming, Backtracking, Advanced
-  Structures); the real app has **16** (adds Searching, BST as separate
-  from Trees, Hash Tables, Trie, Greedy as distinct topics, and groups
-  differently). Do we (a) keep all 16 as-is and treat the design's list as
-  non-binding, (b) remap the real 16 into something closer to the design's
-  11 groupings, or (c) something else?
-- **D2 — Backend stack/hosting.** No backend exists today (§2.3). Options:
-  Node/TypeScript (shares types with the frontend, matches team's evident
-  stack familiarity) vs. Python/FastAPI (the *comment* in `api.ts` already
-  says "FastAPI," suggesting that may have been the original intent) vs.
-  something else. Also: self-hosted vs. a managed platform (Supabase/
-  Firebase, explicitly named as a "recommended future enhancement" in the
-  existing `CODEBASE_ANALYSIS.md`, though that file is this session's own
-  prior analysis, not authoritative).
-- **D3 — Teacher Dashboard scope.** `TeacherDashboard.tsx` and
-  `teacherService.ts` exist and build, but the design contains no teacher-
-  facing screens and the brief's scope section doesn't mention teachers.
-  Keep, freeze as-is, or remove from scope for this migration?
-- **D4 — Code execution provider.** Confirm a managed sandboxed-execution
-  service is acceptable (vs. self-hosted), and which languages are
-  "primary" for v1 (the design only shows C++/Python/Java/Go tabs; the
-  current `executionService.ts` lists 13 supported languages, all fake
-  today).
-- **D5 — AI provider for the tutor going forward.** Gemini vs. OpenAI vs.
-  both, now that real keys will live server-side rather than client-side.
+- **D1 — DSA Worlds taxonomy: keep all 16 real topics as source of truth.**
+  The design's 11-topic "legacy" grouping was made without visibility into
+  the real app; the new nav is extended to represent all 16 rather than
+  deleting real, working content to fit a wireframe made without that
+  context.
+- **D2 — Backend: Node/Express + TypeScript; Postgres via Supabase (managed
+  auth + DB); deploy to Railway or Render, not serverless** — a persistent
+  process is required for code execution (D4), which rules out serverless
+  hosting.
+- **D3 — Teacher Dashboard stays in scope.** Gets real backend wiring in
+  Phase 7 rather than being frozen or dropped.
+- **D4 — Code execution: self-hosted Piston via Docker, no paid execution
+  API.** First languages: Python, JavaScript, Java, C++. Landed early
+  (Phase 2, right after the backend scaffold) — real execution is core to
+  the product, not deferred to a late "nice to have" phase.
+- **D5 — AI provider: Gemini** — already the stubbed provider in
+  `GeminiProvider.ts` and the team's existing choice elsewhere.
