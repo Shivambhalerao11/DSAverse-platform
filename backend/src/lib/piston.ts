@@ -40,11 +40,21 @@ interface RuntimeCache {
 let cache: RuntimeCache | null = null
 const CACHE_TTL_MS = 60_000
 
+function getPistonBaseUrl(): string {
+  const url = env.pistonApiUrl.replace(/\/+$/, "")
+  // If URL already ends with /api/v2, /api/v2/piston, or similar, use it directly
+  if (url.endsWith("/api/v2") || url.endsWith("/api/v2/piston")) {
+    return url
+  }
+  return `${url}/api/v2`
+}
+
 async function getRuntimes(): Promise<PistonRuntime[]> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return cache.runtimes
   }
-  const res = await fetch(`${env.pistonApiUrl}/runtimes`)
+  const baseUrl = getPistonBaseUrl()
+  const res = await fetch(`${baseUrl}/runtimes`)
   if (!res.ok) {
     throw new Error(`Piston /runtimes failed: ${res.status} ${await res.text()}`)
   }
@@ -105,7 +115,8 @@ export async function executeOnPiston(params: {
 }): Promise<PistonExecuteResult> {
   const { language, version } = await resolveRuntime(params.language)
 
-  const res = await fetch(`${env.pistonApiUrl}/execute`, {
+  const baseUrl = getPistonBaseUrl()
+  const res = await fetch(`${baseUrl}/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
